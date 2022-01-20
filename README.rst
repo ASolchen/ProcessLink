@@ -27,7 +27,7 @@ Getting Started
 
 :bash:`pip3 install -r requirements.txt` 
 
-:bash:`python3 getting_statrted.py`
+:bash:`python3 getting_started.py`
 
 Contributions
 =============
