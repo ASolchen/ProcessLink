@@ -24,20 +24,72 @@
 
 from typing import Any, Optional
 from .api import APIClass
-
+from .database import ConnectionDb
 __all__ = ["Tag", "EthernetIpTag"]
 
 class Tag(APIClass):
     """
     The base tag class
     """
+    @property
+    def id(self) -> int:
+        return self._id
+
+    @property
+    def connection_id(self) -> int:
+        return self._connection_id
+
+    @property
+    def datatype(self) -> str:
+        return self._datatype
+    @datatype.setter
+    def datatype(self, value: str) -> None:
+        self._datatype = value
+
+    @property
+    def description(self) -> str:
+        return self._description
+    @description.setter
+    def description(self, value: str) -> None:
+        self._description = value
+    
+
+    @property
+    def value(self) -> Any:
+        return self._value
+    @value.setter
+    def value(self, value: str) -> None:
+        self._value = value
+
+    
     def __repr__(self) -> str:
         return "<class> Tag"
         
     def __init__(self, params: dict) -> None:
         super().__init__()
-        self.properties += ['id', 'name', 'description', 'value']
-        #then set props
+        self.properties += ['id', 'connection_id', 'datatype', 'description', 'value']
+        self._id = params.get("id")
+        self._datatype = params.get("datatype")
+        self._description = params.get("description")
+        self._value = params.get("value")
+        self._connection_id = params["connection_id"]
+        self.orm = ConnectionDb.models['tags']
+    
+    def save_to_db(self, session: "db_session") -> int:
+        entry = session.query(self.orm).filter(self.orm.id == self.id).first()
+        #TODO check if tag and connection types match
+        #TODO check if connection id is in db
+        if entry == None:
+            entry = self.orm()
+        entry.connection_id=self.connection_id
+        entry.description=self.description
+        entry.datatype = self.datatype
+        entry.value = self.value
+        session.add(entry)
+        session.commit()
+        if not self._id == entry.id:
+            self._id = entry.id # if db created this, the widget has a new id
+        return entry.id
 
 class EthernetIpTag(Tag):
     """

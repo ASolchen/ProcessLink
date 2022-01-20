@@ -22,9 +22,11 @@
 # SOFTWARE.
 #
 
+import imp
 from .manager import *
 from .connection import *
 from .tag import *
+from .database import *
 
 
 

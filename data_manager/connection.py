@@ -25,6 +25,7 @@
 from typing import Any, Optional
 from .api import APIClass
 from .tag import Tag
+from .database import ConnectionDb
 
 __all__ = ["Connection"]
 
@@ -37,13 +38,33 @@ class Connection(APIClass):
         return "<class> Connection"
 
     @property
+    def id(self) -> int:
+        return self._id
+
+    @property
+    def connection_type(self) -> str:
+        return self._connection_type
+
+    @property
+    def description(self):
+        return self._description
+    @description.setter
+    def description(self, value: str) -> None:
+        self._description = value
+
+
+    @property
     def tags(self):
         return self._tags
 
     def __init__(self, params: dict) -> None:
         super().__init__()
-        self.properties += ['id', 'name', 'description', 'tags']
+        self.properties += ['id', 'connection_type', 'description', 'tags']
+        self._id = params.get('id')
+        self._connection_type = params.get('connection_type')
+        self._description = params.get('description')
         self._tags = {}
+        self.orm = ConnectionDb.models["connections"] # database object-relational-model
         #then set props
     
     def new_tag(self, params) -> "Tag":
@@ -52,6 +73,18 @@ class Connection(APIClass):
         the connection type and extended properties for that type
         return the Tag() 
         """
-        id = max(self.tags) + 1 if len(self.tags) else 1
+        id = min(self.tags) - 1 if len(self.tags) else -1
         self.tags[id] = Tag(params)
         return self._tags[id]
+
+    def save_to_db(self, session: "db_session") -> int:
+        entry = session.query(self.orm).filter(self.orm.id == self.id).first()
+        if entry == None:
+            entry = self.orm()
+        entry.connection_type=self.connection_type
+        entry.description=self.description
+        session.add(entry)
+        session.commit()
+        if not self._id == entry.id:
+            self._id = entry.id # if db created this, the widget has a new id
+        return entry.id

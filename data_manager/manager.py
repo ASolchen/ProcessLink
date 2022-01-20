@@ -22,9 +22,11 @@
 # SOFTWARE.
 #
 from typing import Any, Optional
+import os
 from .api import APIClass
 from .connection import Connection
-
+from .tag import Tag
+from .database import ConnectionDb, DatabaseError
 __all__ = ["DataManager"]
 
 class DataManager(APIClass):
@@ -34,18 +36,20 @@ class DataManager(APIClass):
         
     def __init__(self) -> None:
         super().__init__()
-        self.properties += ['db', 'db_connection', 'connections']
+        self.properties += ['db_file', 'db_connection', 'connections']
         self._db = None
         self._connections = {}
-        print(self.properties)
+        self._db_file = None
+        self.db_interface = ConnectionDb()
+
 
     @property
-    def db(self) -> bool:
-        return bool(self._db) #True if loaded, False if unset
+    def db_file(self) -> str or None:
+        return self._db_file
 
-    @db.setter
-    def db(self, path:str = None) -> bool:
-        return self.load_database(path)
+    @db_file.setter
+    def db_file(self, path:str) -> None:
+        self._db_file = path
 
     @property
     def db_connection(self) -> list:
@@ -61,7 +65,8 @@ class DataManager(APIClass):
         the connection type and extended properties for that type
         return the Connection() 
         """
-        id = max(self.connections) + 1 if len(self.connections) else 1
+        id = min(self.connections) - 1 if len(self.connections) else -1
+        params['id'] = id
         self.connections[id] = Connection(params)
         return self.connections[id]
 
@@ -72,17 +77,34 @@ class DataManager(APIClass):
         read params from db. If no db loaded or id not in it
         return None, else return the Connection() 
         """
-    def load_db(self, path: str) -> bool:
+    def load_db(self) -> bool:
         """
         load the settings db. return True if successful, else false
         if db is already loaded, this should close down the existing one first.
         this method only loads the db to the manager and gets the session
         ready. User is to call loading connections, tags, etc.
         """
-        return False
+        self.db_interface.db_file = self._db_file
+        self.db_interface.open()
+        return True
+
+    def close_db(self) -> bool:
+        """
+        close the settings db. return None
+        """
+        self.db_interface.close()
+
     def query_for_connections(self) -> list:
         """
         if db open, query it for a list of the connection ids. if not open or none
         in it return []
         """
         return []
+    
+    def save_connection(self, conn: "Connection") -> None:
+        if self.db_interface.session:
+            conn.save_to_db(self.db_interface.session)
+    
+    def save_tag(self, tag: "Tag") -> None:
+        if self.db_interface.session:
+            tag.save_to_db(self.db_interface.session)
