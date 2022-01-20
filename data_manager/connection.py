@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Copyright (c) 2022 Adam Solchenberger <asolchenberger@gmail.com>
-# Copyright (c) 2022 Jason Engman <engmanj@gmail.com>
+# Copyright (c) 2022 Jason Engman <jengman@testtech-solutions.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
