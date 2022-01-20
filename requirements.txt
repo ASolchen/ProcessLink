@@ -1,0 +1,4 @@
+sqlalchemy
+pycomm3
+pymodbus
+pyserial

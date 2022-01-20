@@ -1,0 +1,7 @@
+#create venv
+python3 -m venv venv_dm
+#activate it
+source venv_dm/bin/activate
+#put absolute path in 
+import sys
+sys.path.append("/home/user/absolute/path/to/data_manager") 
