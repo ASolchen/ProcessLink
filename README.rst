@@ -27,9 +27,7 @@ Getting Started
 
 :bash:`pip3 install -r requirements.txt` 
 
-:bash:`cd data_manager`
-
-:bash:`python3 main.py`
+:bash:`python3 getting_statrted.py`
 
 Contributions
 =============
