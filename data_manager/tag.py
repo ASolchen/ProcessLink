@@ -67,7 +67,7 @@ class Tag(APIClass):
 
     
     def __repr__(self) -> str:
-        return "<class> Tag"
+        return f"Tag: [{self.connection_id}]{self.id}"
         
     def __init__(self, params: dict) -> None:
         super().__init__()

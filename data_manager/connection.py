@@ -35,7 +35,7 @@ class Connection(APIClass):
     """
 
     def __repr__(self) -> str:
-        return "<class> Connection"
+        return f"Connection: {self.id}"
 
     @property
     def id(self) -> str:
