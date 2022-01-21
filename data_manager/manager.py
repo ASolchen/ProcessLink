@@ -65,10 +65,8 @@ class DataManager(APIClass):
         the connection type and extended properties for that type
         return the Connection() 
         """
-        id = min(self.connections) - 1 if len(self.connections) else -1
-        params['id'] = id
-        self.connections[id] = Connection(params)
-        return self.connections[id]
+        self.connections[params["id"]] = Connection(params)
+        return self.connections[params["id"]]
 
     def new_connection_from_db(self, id) -> None or "Connection":
         """

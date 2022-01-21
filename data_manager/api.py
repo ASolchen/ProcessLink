@@ -33,7 +33,9 @@ class APIClass(object):
     uses a list of properties that are availible externally
     each class that gets extended will add it properties to its super()
     """
-    properties = []
+    def __init__(self) -> None:
+        super().__init__()
+        self.properties = []
 
     def get(self, prop: str) -> Any:
         if not prop in self.properties:

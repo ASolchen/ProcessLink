@@ -32,11 +32,15 @@ class Tag(APIClass):
     The base tag class
     """
     @property
-    def id(self) -> int:
+    def id(self) -> str:
         return self._id
 
     @property
-    def connection_id(self) -> int:
+    def tag_type(self) -> int:
+        return self._tag_type
+
+    @property
+    def connection_id(self) -> str:
         return self._connection_id
 
     @property
@@ -69,18 +73,19 @@ class Tag(APIClass):
         super().__init__()
         self.properties += ['id', 'connection_id', 'datatype', 'description', 'value']
         self._id = params.get("id")
+        self._tag_type = 1 #1=base tag. Override this on exetended class' init to the correct type
         self._datatype = params.get("datatype")
         self._description = params.get("description")
         self._value = params.get("value")
         self._connection_id = params["connection_id"]
-        self.orm = ConnectionDb.models['tags']
+        self.base_orm = ConnectionDb.models['tags']
     
     def save_to_db(self, session: "db_session") -> int:
-        entry = session.query(self.orm).filter(self.orm.id == self.id).first()
-        #TODO check if tag and connection types match
-        #TODO check if connection id is in db
+        entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).filter(self.base_orm.connection_id == self.connection_id).first()
         if entry == None:
-            entry = self.orm()
+            entry = self.base_orm()
+        entry.id=self.id
+        entry.tag_type=self.tag_type
         entry.connection_id=self.connection_id
         entry.description=self.description
         entry.datatype = self.datatype

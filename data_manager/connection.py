@@ -38,11 +38,11 @@ class Connection(APIClass):
         return "<class> Connection"
 
     @property
-    def id(self) -> int:
+    def id(self) -> str:
         return self._id
 
     @property
-    def connection_type(self) -> str:
+    def connection_type(self) -> int:
         return self._connection_type
 
     @property
@@ -61,10 +61,10 @@ class Connection(APIClass):
         super().__init__()
         self.properties += ['id', 'connection_type', 'description', 'tags']
         self._id = params.get('id')
-        self._connection_type = params.get('connection_type')
+        self._connection_type = 1 #1=base connection. Override this on exetended class' init to the correct type
         self._description = params.get('description')
         self._tags = {}
-        self.orm = ConnectionDb.models["connections"] # database object-relational-model
+        self.base_orm = ConnectionDb.models["connections"] # database object-relational-model
         #then set props
     
     def new_tag(self, params) -> "Tag":
@@ -73,16 +73,16 @@ class Connection(APIClass):
         the connection type and extended properties for that type
         return the Tag() 
         """
-        id = min(self.tags) - 1 if len(self.tags) else -1
-        self.tags[id] = Tag(params)
-        return self._tags[id]
+        self.tags[params["id"]] = Tag(params)
+        return self.tags[params["id"]]
 
     def save_to_db(self, session: "db_session") -> int:
-        entry = session.query(self.orm).filter(self.orm.id == self.id).first()
+        entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).first()
         if entry == None:
-            entry = self.orm()
-        entry.connection_type=self.connection_type
-        entry.description=self.description
+            entry = self.base_orm()
+        entry.id = self.id
+        entry.connection_type = self.connection_type
+        entry.description = self.description
         session.add(entry)
         session.commit()
         if not self._id == entry.id:

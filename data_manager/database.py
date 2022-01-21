@@ -42,11 +42,16 @@ class DatabaseError(Exception):
     raised on database errors
     """
 
+class DuplicateIdError(DatabaseError):
+    """
+    raised on attempt to create a dulpicate connection or tag
+    """
+
 ConnectionsBase = declarative_base()
 
 class ConnectionTable(ConnectionsBase): # this table holds all tag values being subscribed to
     __tablename__ = 'connections'
-    id = Column(Integer, primary_key=True)
+    id = Column(String, primary_key=True)
     connection_type = Column(Integer, nullable=False)
     description = Column(String)
 
@@ -54,12 +59,12 @@ class ConnectionTable(ConnectionsBase): # this table holds all tag values being 
 class ConnectionParamsModbusRTU(ConnectionsBase):
     __tablename__= 'connection-params-modbusRTU'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     status = Column(Integer) #what is this?
     port = Column(String)
-    station_id = Column(Integer, default=1)
+    station_id = Column(String, default=1)
     baudrate = Column(Integer, default=9600)
     timeout = Column(Float, default=3.0)
     stop_bit = Column(Integer, default=1)
@@ -72,19 +77,19 @@ class ConnectionParamsModbusRTU(ConnectionsBase):
 class ConnectionParamsModbusTCP(ConnectionsBase):
     __tablename__= 'connection-params-modbusTCP'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     status = Column(Integer) #what is this?
     host = Column(String, default='127.0.0.1')
     port = Column(Integer, default=502)
-    station_id = Column(Integer, default=1)
+    station_id = Column(String, default=1)
 
 
 class ConnectionParamsEthernetIP(ConnectionsBase):
     __tablename__= 'connection-params-ethernetIP'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     status = Column(Integer) #what is this?
@@ -94,7 +99,7 @@ class ConnectionParamsEthernetIP(ConnectionsBase):
 class ConnectionParamsOPC(ConnectionsBase):
     __tablename__= 'connection-params-opc'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     status = Column(Integer) #what is this?
@@ -103,7 +108,7 @@ class ConnectionParamsOPC(ConnectionsBase):
 class ConnectionParamsGrbl(ConnectionsBase):
     __tablename__= 'connection-params-grbl'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     status = Column(Integer) #what is this?
@@ -111,8 +116,9 @@ class ConnectionParamsGrbl(ConnectionsBase):
 
 class TagTable(ConnectionsBase): # this table holds all tag values being subscribed to
     __tablename__ = 'tags'
-    id = Column(Integer, primary_key=True)
-    connection_id = Column(Integer, ForeignKey(ConnectionTable.id))
+    id = Column(String, primary_key=True) #tag unique id is a combo of tag and connection ids
+    connection_id = Column(String, ForeignKey(ConnectionTable.id), primary_key=True)
+    tag_type = Column(Integer, nullable=False)
     description = Column(String)
     datatype = Column(String)
     value = Column(String) # used for retenitive tags
@@ -120,19 +126,19 @@ class TagTable(ConnectionsBase): # this table holds all tag values being subscri
 class TagParamsLocal(ConnectionsBase):
     __tablename__= 'tag-params-local'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
     address = Column(String, nullable=False)
 
 class TagParamsEthernetIP(ConnectionsBase):
     __tablename__= 'tag-params-ethernetIP'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
     address = Column(String, nullable=False)
 
 class TagParamsModbus(ConnectionsBase):
     __tablename__= 'tag-params-modbus'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
     address = Column(Integer, nullable=False)
     bit = Column(Integer, default=0)
     word_swapped = Column(Boolean, default=False)
@@ -141,13 +147,13 @@ class TagParamsModbus(ConnectionsBase):
 class TagParamsOPC(ConnectionsBase):
     __tablename__= 'tag-params-opc'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
-    node_id = Column(Integer, nullable=False)
+    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    node_id = Column(String, nullable=False)
 
 class TagParamsGrbl(ConnectionsBase):
     __tablename__= 'tag-params-grbl'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(Integer, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
     address = Column(String, nullable=False)
 
 class ConnectionDb():
