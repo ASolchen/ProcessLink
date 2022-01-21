@@ -29,6 +29,14 @@ from .tag import Tag
 from .database import ConnectionDb, DatabaseError
 __all__ = ["DataManager"]
 
+CONNECTION_TYPES = {}
+TAG_TYPES = {}
+try:
+    from .connections.logix import LogixConnection
+    CONNECTION_TYPES[2] = LogixConnection
+except ImportError:
+    pass
+
 class DataManager(APIClass):
 
     def __repr__(self) -> str:
@@ -36,6 +44,8 @@ class DataManager(APIClass):
         
     def __init__(self) -> None:
         super().__init__()
+        self._connection_types = CONNECTION_TYPES
+        self._tag_types = TAG_TYPES
         self.properties += ['db_file', 'db_connection', 'connections']
         self._db = None
         self._connections = {}
