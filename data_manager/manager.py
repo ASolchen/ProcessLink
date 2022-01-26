@@ -23,17 +23,18 @@
 #
 from typing import Any, Optional
 import os
-from .api import APIClass
-from .connection import Connection
+from .api import APIClass, PropertyError
+
+from .connection import Connection, TAG_TYPES
 from .tag import Tag
 from .database import ConnectionDb, DatabaseError
 __all__ = ["DataManager"]
 
-CONNECTION_TYPES = {}
-TAG_TYPES = {}
+CONNECTION_TYPES = {'local': Connection}
 try:
-    from .connections.logix import LogixConnection
-    CONNECTION_TYPES[2] = LogixConnection
+    from .connections.logix import LogixConnection, LogixTag
+    CONNECTION_TYPES['logix'] =  LogixConnection
+    TAG_TYPES['logix'] =  LogixTag
 except ImportError:
     pass
 
@@ -46,12 +47,16 @@ class DataManager(APIClass):
         super().__init__()
         self._connection_types = CONNECTION_TYPES
         self._tag_types = TAG_TYPES
-        self.properties += ['db_file', 'db_connection', 'connections']
+        self.properties += ['db_file', 'db_connection', 'connections', 'connection_types']
         self._db = None
         self._connections = {}
         self._db_file = None
         self.db_interface = ConnectionDb()
 
+
+    @property
+    def connection_types(self) -> dict:
+        return [key for key in self._connection_types]
 
     @property
     def db_file(self) -> str or None:
@@ -75,8 +80,17 @@ class DataManager(APIClass):
         the connection type and extended properties for that type
         return the Connection() 
         """
-        self.connections[params["id"]] = Connection(params)
-        return self.connections[params["id"]]
+        try:
+            params['connection_type']
+        except KeyError as e:
+            raise PropertyError(f'Error creating connection, missing parameter: {e}')
+        try:
+            self.connections[params["id"]] = self._connection_types[params['connection_type']](params)
+            return self.connections[params["id"]]
+        except KeyError as e:
+            raise PropertyError(f'Error creating connection, unknown type: {e}')
+
+        
 
     def new_connection_from_db(self, id) -> None or "Connection":
         """

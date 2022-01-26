@@ -50,9 +50,9 @@ class DuplicateIdError(DatabaseError):
 ConnectionsBase = declarative_base()
 
 class ConnectionTable(ConnectionsBase): # this table holds all tag values being subscribed to
-    __tablename__ = 'connections'
+    __tablename__ = 'connection-params-local'
     id = Column(String, primary_key=True)
-    connection_type = Column(Integer, nullable=False)
+    connection_type = Column(String, nullable=False)
     description = Column(String)
 
 
@@ -62,7 +62,6 @@ class ConnectionParamsModbusRTU(ConnectionsBase):
     id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
-    status = Column(Integer) #what is this?
     port = Column(String)
     station_id = Column(String, default=1)
     baudrate = Column(Integer, default=9600)
@@ -80,19 +79,17 @@ class ConnectionParamsModbusTCP(ConnectionsBase):
     id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
-    status = Column(Integer) #what is this?
     host = Column(String, default='127.0.0.1')
     port = Column(Integer, default=502)
     station_id = Column(String, default=1)
 
 
 class ConnectionParamsEthernetIP(ConnectionsBase):
-    __tablename__= 'connection-params-ethernetIP'
+    __tablename__= 'connection-params-logix'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
     id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
-    status = Column(Integer) #what is this?
     host = Column(String, default='127.0.0.1') #uses pycomm3 syntax for PLC path
     port = Column(Integer, default=44818)
 
@@ -102,7 +99,6 @@ class ConnectionParamsOPC(ConnectionsBase):
     id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
-    status = Column(Integer) #what is this?
     host = Column(String, default='opc.tcp://127.0.0.1:49320') #uses pyopc url syntax for path
 
 class ConnectionParamsGrbl(ConnectionsBase):
@@ -111,26 +107,19 @@ class ConnectionParamsGrbl(ConnectionsBase):
     id = Column(String, ForeignKey(ConnectionTable.id, ondelete='CASCADE'), primary_key=True)
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
-    status = Column(Integer) #what is this?
     port = Column(String, default='/dev/ttyACM0')
 
 class TagTable(ConnectionsBase): # this table holds all tag values being subscribed to
-    __tablename__ = 'tags'
+    __tablename__ = 'tag-params-local'
     id = Column(String, primary_key=True) #tag unique id is a combo of tag and connection ids
     connection_id = Column(String, ForeignKey(ConnectionTable.id), primary_key=True)
-    tag_type = Column(Integer, nullable=False)
+    tag_type = Column(String, nullable=False)
     description = Column(String)
     datatype = Column(String)
     value = Column(String) # used for retenitive tags
 
-class TagParamsLocal(ConnectionsBase):
-    __tablename__= 'tag-params-local'
-    relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
-    address = Column(String, nullable=False)
-
 class TagParamsEthernetIP(ConnectionsBase):
-    __tablename__= 'tag-params-ethernetIP'
+    __tablename__= 'tag-params-logix'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
     id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
     address = Column(String, nullable=False)
@@ -158,15 +147,14 @@ class TagParamsGrbl(ConnectionsBase):
 
 class ConnectionDb():
     models = {
-        "connections": ConnectionTable,
-        "connection-params-ethernetIP":    ConnectionParamsEthernetIP,
+        "connection-params-local": ConnectionTable,
+        "connection-params-logix":    ConnectionParamsEthernetIP,
         "connection-params-modbusRTU": ConnectionParamsModbusRTU,
         "connection-params-modbusTCP": ConnectionParamsModbusTCP,
         "connection-params-opc": ConnectionParamsOPC,
         "connection-params-grbl": ConnectionParamsGrbl,
-        "tags": TagTable,
-        "tag-params-local":    TagParamsLocal,
-        "tag-params-ethernetIP":    TagParamsEthernetIP,
+        "tag-params-local":  TagTable,
+        "tag-params-logix":    TagParamsEthernetIP,
         "tag-params-modbus": TagParamsModbus,
         "tag-params-opc": TagParamsOPC,
         "tag-params-grbl": TagParamsGrbl

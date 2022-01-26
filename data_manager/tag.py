@@ -23,9 +23,9 @@
 #
 
 from typing import Any, Optional
-from .api import APIClass
+from .api import APIClass, PropertyError
 from .database import ConnectionDb
-__all__ = ["Tag", "EthernetIpTag"]
+__all__ = ["Tag"]
 
 class Tag(APIClass):
     """
@@ -72,13 +72,18 @@ class Tag(APIClass):
     def __init__(self, params: dict) -> None:
         super().__init__()
         self.properties += ['id', 'connection_id', 'datatype', 'description', 'value']
+        try:
+            params['id']
+            params['connection_id']
+        except KeyError as e:
+            raise PropertyError(f"Missing expected property {e}")
         self._id = params.get("id")
-        self._tag_type = 1 #1=base tag. Override this on exetended class' init to the correct type
+        self._tag_type = "local" #1=base tag. Override this on exetended class' init to the correct type
         self._datatype = params.get("datatype")
         self._description = params.get("description")
         self._value = params.get("value")
         self._connection_id = params["connection_id"]
-        self.base_orm = ConnectionDb.models['tags']
+        self.base_orm = ConnectionDb.models['tag-params-local']
     
     def save_to_db(self, session: "db_session") -> int:
         entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).filter(self.base_orm.connection_id == self.connection_id).first()
@@ -93,18 +98,6 @@ class Tag(APIClass):
         session.add(entry)
         session.commit()
         if not self._id == entry.id:
-            self._id = entry.id # if db created this, the widget has a new id
+            self._id = entry.id
         return entry.id
 
-class EthernetIpTag(Tag):
-    """
-    The base tag class
-    """
-
-    def __repr__(self) -> str:
-        return "<class> EthernetIP Tag"
-
-    def __init__(self, params: dict) -> None:
-        super().__init__(params)
-        self._tags = {}
-        self.properties += ['address', 'data_type', 'tags']

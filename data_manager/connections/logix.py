@@ -1,7 +1,90 @@
 from pycomm3 import LogixDriver
+
+from data_manager.database import ConnectionDb
 from ..tag import Tag
+from ..connection import Connection
+from ..api import PropertyError
 
-
-class LogixConnection(Tag):
+class LogixTag(Tag):
+    @property
+    def address(self) -> str:
+        return self._address
+    
     def __init__(self, params: dict) -> None:
         super().__init__(params)
+        self.properties += ['address']
+        self._tag_type = "logix"
+        self.orm = ConnectionDb.models['tag-params-logix']
+        try:
+            self._address = params['address']
+        except KeyError as e:
+            raise PropertyError(f"Missing expected property {e}")
+    
+    def save_to_db(self, session: "db_session") -> int:
+        id = super().save_to_db(session)
+        entry = session.query(self.orm).filter(self.orm.id == id).first()
+        if entry == None:
+            entry = self.orm()
+        entry.id = self.id
+        entry.address = self.address
+        session.add(entry)
+        session.commit()
+        return entry.id
+        
+
+class LogixConnection(Connection):
+
+    @property
+    def pollrate(self) -> float:
+        return self._pollrate
+    @pollrate.setter
+    def pollrate(self, value: float) -> None:
+        self._pollrate = value
+
+    @property
+    def auto_connect(self) -> bool:
+        return self._auto_connect
+    @auto_connect.setter
+    def auto_connect(self, value: bool) -> None:
+        self._auto_connect = value
+
+    @property
+    def host(self) -> str:
+        return self._host
+    @host.setter
+    def port(self, value: str) -> None:
+        self._host = value
+
+    @property
+    def port(self) -> int:
+        return self._port
+    @port.setter
+    def port(self, value: int) -> None:
+        self._port = value
+
+    def __init__(self, params: dict) -> None:
+        super().__init__(params)
+        self.properties += ['pollrate', 'auto_connect', 'status', 'port', 'port']
+        self._connection_type = "logix"
+        self.orm = ConnectionDb.models["connection-params-logix"]
+        self._pollrate = params.get('pollrate') or 1.0
+        self._auto_connect = params.get('auto_connect') or False
+        self._port = params.get('port') or 44818
+        try:
+            self._host = params['host']
+        except KeyError as e:
+            raise PropertyError(f"Missing expected property {e}")
+
+    def save_to_db(self, session: "db_session") -> str:
+        id = super().save_to_db(session)
+        entry = session.query(self.orm).filter(self.orm.id == id).first()
+        if entry == None:
+            entry = self.orm()
+        entry.id = self.id
+        entry.pollrate = self.pollrate
+        entry.auto_connect = self.auto_connect
+        entry.host = self.host
+        entry.port = self.port
+        session.add(entry)
+        session.commit()
+        return entry.id

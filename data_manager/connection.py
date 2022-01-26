@@ -22,12 +22,16 @@
 # SOFTWARE.
 #
 
+import re
 from typing import Any, Optional
-from .api import APIClass
+from .api import APIClass, PropertyError
 from .tag import Tag
 from .database import ConnectionDb
 
 __all__ = ["Connection"]
+
+TAG_TYPES = {'local': Tag}
+
 
 class Connection(APIClass):
     """
@@ -42,7 +46,7 @@ class Connection(APIClass):
         return self._id
 
     @property
-    def connection_type(self) -> int:
+    def connection_type(self) -> str:
         return self._connection_type
 
     @property
@@ -57,14 +61,22 @@ class Connection(APIClass):
     def tags(self):
         return self._tags
 
+    
+
     def __init__(self, params: dict) -> None:
         super().__init__()
+        self._tag_types = TAG_TYPES
         self.properties += ['id', 'connection_type', 'description', 'tags']
+        try:
+            params['id']
+            params['connection_type']
+        except KeyError as e:
+            raise PropertyError(f"Missing expected property {e}")
         self._id = params.get('id')
-        self._connection_type = 1 #1=base connection. Override this on exetended class' init to the correct type
+        self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
         self._description = params.get('description')
         self._tags = {}
-        self.base_orm = ConnectionDb.models["connections"] # database object-relational-model
+        self.base_orm = ConnectionDb.models["connection-params-local"] # database object-relational-model
         #then set props
     
     def new_tag(self, params) -> "Tag":
@@ -73,10 +85,15 @@ class Connection(APIClass):
         the connection type and extended properties for that type
         return the Tag() 
         """
-        self.tags[params["id"]] = Tag(params)
-        return self.tags[params["id"]]
+        params['connection_id'] = self.id
+        try:
+            self.tags[params["id"]] = self._tag_types[self.connection_type](params)
+            return self.tags[params["id"]]
+        except KeyError as e:
+            raise PropertyError(f'Error creating tag, unknown type: {e}')
+        
 
-    def save_to_db(self, session: "db_session") -> int:
+    def save_to_db(self, session: "db_session") -> str:
         entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).first()
         if entry == None:
             entry = self.base_orm()
