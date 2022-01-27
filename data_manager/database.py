@@ -31,7 +31,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import declarative_base, relationship, backref
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, ForeignKeyConstraint
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.sql.sqltypes import BIGINT, Float, Numeric
 
@@ -71,7 +71,6 @@ class ConnectionParamsModbusRTU(ConnectionsBase):
     byte_size = Column(Integer, default=8)
     retries = Column(Integer, default=3)
     
-
 
 class ConnectionParamsModbusTCP(ConnectionsBase):
     __tablename__= 'connection-params-modbusTCP'
@@ -118,32 +117,52 @@ class TagTable(ConnectionsBase): # this table holds all tag values being subscri
     datatype = Column(String)
     value = Column(String) # used for retenitive tags
 
+
 class TagParamsEthernetIP(ConnectionsBase):
     __tablename__= 'tag-params-logix'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, primary_key=True)
+    connection_id = Column(String, primary_key=True)
+    __table_args__ = (ForeignKeyConstraint([id, connection_id],
+                                           [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
+                      {})
     address = Column(String, nullable=False)
+
 
 class TagParamsModbus(ConnectionsBase):
     __tablename__= 'tag-params-modbus'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, primary_key=True)
+    connection_id = Column(String, primary_key=True)
+    __table_args__ = (ForeignKeyConstraint([id, connection_id],
+                                           [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
+                      {})
     address = Column(Integer, nullable=False)
     bit = Column(Integer, default=0)
     word_swapped = Column(Boolean, default=False)
     byte_swapped = Column(Boolean, default=False)
 
+
 class TagParamsOPC(ConnectionsBase):
     __tablename__= 'tag-params-opc'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, primary_key=True)
+    connection_id = Column(String, primary_key=True)
+    __table_args__ = (ForeignKeyConstraint([id, connection_id],
+                                           [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
+                      {})
     node_id = Column(String, nullable=False)
 
 class TagParamsGrbl(ConnectionsBase):
     __tablename__= 'tag-params-grbl'
     relationship('TagTable', backref=backref('children', passive_deletes=True))
-    id = Column(String, ForeignKey(TagTable.id, ondelete='CASCADE'), primary_key=True)
+    id = Column(String, primary_key=True)
+    connection_id = Column(String, primary_key=True)
+    __table_args__ = (ForeignKeyConstraint([id, connection_id],
+                                           [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
+                      {})
     address = Column(String, nullable=False)
+
 
 class ConnectionDb():
     models = {
