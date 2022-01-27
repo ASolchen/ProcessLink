@@ -9,6 +9,17 @@ class LogixTag(Tag):
     @property
     def address(self) -> str:
         return self._address
+
+    @classmethod
+    def get_params_from_db(cls, session, id: str):
+        params = super().get_params_from_db(session, id)
+        orm = ConnectionDb.models["tag-params-logix"]
+        tag = session.query(orm).filter(orm.id == id).first()
+        if tag:
+            params.update({
+                'address': tag.address,
+            })
+        return params
     
     def __init__(self, params: dict) -> None:
         super().__init__(params)
@@ -62,9 +73,23 @@ class LogixConnection(Connection):
     def port(self, value: int) -> None:
         self._port = value
 
+    @classmethod
+    def get_params_from_db(cls, session, id: str):
+        params = super().get_params_from_db(session, id)
+        orm = ConnectionDb.models["connection-params-logix"]
+        conn = session.query(orm).filter(orm.id == id).first()
+        if conn:
+            params.update({
+                'pollrate': conn.pollrate,
+                'auto_connect': conn.auto_connect,
+                'host': conn.host,
+                'port': conn.port,
+            })
+        return params
+
     def __init__(self, params: dict) -> None:
         super().__init__(params)
-        self.properties += ['pollrate', 'auto_connect', 'status', 'port', 'port']
+        self.properties += ['pollrate', 'auto_connect', 'host', 'port']
         self._connection_type = "logix"
         self.orm = ConnectionDb.models["connection-params-logix"]
         self._pollrate = params.get('pollrate') or 1.0

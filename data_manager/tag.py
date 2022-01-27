@@ -65,7 +65,22 @@ class Tag(APIClass):
     def value(self, value: str) -> None:
         self._value = value
 
-    
+
+    @classmethod
+    def get_params_from_db(cls, session, id: str):
+        params = None
+        orm = ConnectionDb.models["tag-params-local"]
+        tag = session.query(orm).filter(orm.id == id).first()
+        if tag:
+            params = {
+                'id': tag.id,
+                'connection_id': tag.connection_id,
+                'description': tag.description,
+                'datatype': tag.description,
+                'value': tag.value,
+            }
+        return params
+
     def __repr__(self) -> str:
         return f"Tag: [{self.connection_id}]{self.id}"
         

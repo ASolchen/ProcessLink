@@ -24,6 +24,7 @@ if __name__ == "__main__":
         #                         "value":x*100.0,
         #                         "address": f"PLC_Tag_F{x}",
         #                         })
+        print(conn_obj)
         for tag_id, tag_obj in conn_obj.get("tags").items():
             #dm.save_tag(tag_obj)
             print(tag_obj)

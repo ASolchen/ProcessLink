@@ -21,13 +21,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 import os
+
+from pycomm3 import tag
 from .api import APIClass, PropertyError
 
 from .connection import Connection, TAG_TYPES
 from .tag import Tag
 from .database import ConnectionDb, DatabaseError
+from .subscription import SubscriptionDb
 __all__ = ["DataManager"]
 
 CONNECTION_TYPES = {'local': Connection}
@@ -52,6 +55,8 @@ class DataManager(APIClass):
         self._connections = {}
         self._db_file = None
         self.db_interface = ConnectionDb()
+        self.sub_db = SubscriptionDb()
+        self.sub_callbacks = {}
 
 
     @property
@@ -85,20 +90,41 @@ class DataManager(APIClass):
         except KeyError as e:
             raise PropertyError(f'Error creating connection, missing parameter: {e}')
         try:
-            self.connections[params["id"]] = self._connection_types[params['connection_type']](params)
+            self.connections[params["id"]] = CONNECTION_TYPES[params['connection_type']](params)
             return self.connections[params["id"]]
         except KeyError as e:
             raise PropertyError(f'Error creating connection, unknown type: {e}')
 
-        
+    def parse_tagname(self, tagname: str) -> list[str, str]:
+        return tagname.replace("[","").split("]")
 
-    def new_connection_from_db(self, id) -> None or "Connection":
+    def subscribe(self, tagname: str, id: str, callback: Callable) -> "Tag":
         """
-        query the active db file for the connection. If exists,
-        load instantiate one, add it to self._connections and
-        read params from db. If no db loaded or id not in it
-        return None, else return the Connection() 
+        subscribe to a tag. Expected tagname format is '[connection]tag'
+        sends the callback a tag update in a dictionary e.g.
+        {"[MyConn]MyTag}": {"value": 3.14, "timestamp": 16000203.7}, }.
+        If multiple subscriptions requested using the same id,
+        the callback is sent multiple tags a the same time.
         """
+        conn_name, tag_name = self.parse_tagname(tagname)
+        tag = None
+        conn = self.connections.get(conn_name)
+        if conn:
+            tag = conn.tags.get(tag_name)
+        if conn and tag:
+            sub = self.sub_db.session.query(self.base_orm)\
+                .filter(self.sub_db.orm.sub_id == id)\
+                .filter(self.sub_db.orm.connection == conn_name)\
+                .filter(self.sub_db.orm.tag == tag)\
+                    .first()
+            if sub == None:
+                sub = self.sub_db.orm()
+                sub.sub_id = id
+                sub.connection = conn_name
+                sub.tag = tag_name
+            return True # found
+        return False
+
     def load_db(self) -> bool:
         """
         load the settings db. return True if successful, else false
@@ -108,6 +134,13 @@ class DataManager(APIClass):
         """
         self.db_interface.db_file = self._db_file
         self.db_interface.open()
+        session = self.db_interface.session
+        orm = ConnectionDb.models["connection-params-local"]
+        conns = session.query(orm).all()
+        for conn in conns:
+            params = CONNECTION_TYPES[conn.connection_type].get_params_from_db(session, conn.id)
+            conn_obj = self.new_connection(params)
+            conn_obj.load_tags_from_db(session)
         return True
 
     def close_db(self) -> bool:
@@ -115,13 +148,6 @@ class DataManager(APIClass):
         close the settings db. return None
         """
         self.db_interface.close()
-
-    def query_for_connections(self) -> list:
-        """
-        if db open, query it for a list of the connection ids. if not open or none
-        in it return []
-        """
-        return []
     
     def save_connection(self, conn: "Connection") -> None:
         if self.db_interface.session:

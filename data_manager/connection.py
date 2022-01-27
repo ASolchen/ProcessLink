@@ -61,6 +61,19 @@ class Connection(APIClass):
     def tags(self):
         return self._tags
 
+    @classmethod
+    def get_params_from_db(cls, session, id: str):
+        params = None
+        orm = ConnectionDb.models["connection-params-local"]
+        conn = session.query(orm).filter(orm.id == id).first()
+        if conn:
+            params = {
+                'id': conn.id,
+                'connection_type': conn.connection_type,
+                'description': conn.description,
+            }
+        return params
+
     
 
     def __init__(self, params: dict) -> None:
@@ -87,7 +100,7 @@ class Connection(APIClass):
         """
         params['connection_id'] = self.id
         try:
-            self.tags[params["id"]] = self._tag_types[self.connection_type](params)
+            self.tags[params["id"]] = TAG_TYPES[self.connection_type](params)
             return self.tags[params["id"]]
         except KeyError as e:
             raise PropertyError(f'Error creating tag, unknown type: {e}')
@@ -105,3 +118,11 @@ class Connection(APIClass):
         if not self._id == entry.id:
             self._id = entry.id # if db created this, the widget has a new id
         return entry.id
+    
+    def load_tags_from_db(self, session):
+        orm = ConnectionDb.models['tag-params-local']
+        tags = session.query(orm).filter(orm.connection_id == self.id).all()
+        for tag in tags:
+            params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id)
+            self.new_tag(params)
+
