@@ -112,16 +112,18 @@ class DataManager(APIClass):
         if conn:
             tag = conn.tags.get(tag_name)
         if conn and tag:
-            sub = self.sub_db.session.query(self.base_orm)\
+            sub = self.sub_db.session.query(self.sub_db.orm)\
                 .filter(self.sub_db.orm.sub_id == id)\
                 .filter(self.sub_db.orm.connection == conn_name)\
-                .filter(self.sub_db.orm.tag == tag)\
+                .filter(self.sub_db.orm.tag == tag_name)\
                     .first()
             if sub == None:
                 sub = self.sub_db.orm()
                 sub.sub_id = id
                 sub.connection = conn_name
                 sub.tag = tag_name
+                self.sub_db.session.add(sub)
+                self.sub_db.session.commit()
             return True # found
         return False
 

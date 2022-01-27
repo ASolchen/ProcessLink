@@ -15,7 +15,7 @@ SubscriptionBase = declarative_base()
 
 class SubscriptionTable(SubscriptionBase): # this table holds all tag values being subscribed to
     __tablename__ = 'subscriptions'
-    id = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True)
     sub_id = Column(String, nullable=False)
     connection = Column(String, nullable=False)
     tag = Column(String, nullable=False)
@@ -26,18 +26,8 @@ class SubscriptionTable(SubscriptionBase): # this table holds all tag values bei
 
 class SubscriptionDb(object):
     def __init__(self) -> None:
-        self.session = None
-        self.engine = None
-        self.orm = SubscriptionDb
-
-    def open(self) -> None:
+        self.orm = SubscriptionTable
         self.engine = create_engine('sqlite://')
         SubscriptionBase.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-
-    def close(self, *args: Any) -> None:
-        if self.session:
-            self.session.close()
-        self.session = None
-        self.engine = None

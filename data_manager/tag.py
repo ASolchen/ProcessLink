@@ -64,6 +64,10 @@ class Tag(APIClass):
     @value.setter
     def value(self, value: str) -> None:
         self._value = value
+    
+    @property
+    def tagname(self) -> str:
+        return f"[{self.connection_id}]{self.id}"
 
 
     @classmethod
@@ -86,7 +90,7 @@ class Tag(APIClass):
         
     def __init__(self, params: dict) -> None:
         super().__init__()
-        self.properties += ['id', 'connection_id', 'datatype', 'description', 'value']
+        self.properties += ['tagname', 'id', 'connection_id', 'datatype', 'description', 'value']
         try:
             params['id']
             params['connection_id']
