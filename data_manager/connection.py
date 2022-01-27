@@ -123,6 +123,6 @@ class Connection(APIClass):
         orm = ConnectionDb.models['tag-params-local']
         tags = session.query(orm).filter(orm.connection_id == self.id).all()
         for tag in tags:
-            params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id)
+            params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id, self.id)
             self.new_tag(params)
 

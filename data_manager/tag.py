@@ -67,10 +67,10 @@ class Tag(APIClass):
 
 
     @classmethod
-    def get_params_from_db(cls, session, id: str):
+    def get_params_from_db(cls, session, id: str, connection_id:str):
         params = None
         orm = ConnectionDb.models["tag-params-local"]
-        tag = session.query(orm).filter(orm.id == id).first()
+        tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
         if tag:
             params = {
                 'id': tag.id,

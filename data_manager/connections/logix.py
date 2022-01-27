@@ -11,10 +11,10 @@ class LogixTag(Tag):
         return self._address
 
     @classmethod
-    def get_params_from_db(cls, session, id: str):
-        params = super().get_params_from_db(session, id)
+    def get_params_from_db(cls, session, id: str, connection_id: str):
+        params = super().get_params_from_db(session, id, connection_id)
         orm = ConnectionDb.models["tag-params-logix"]
-        tag = session.query(orm).filter(orm.id == id).first()
+        tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
         if tag:
             params.update({
                 'address': tag.address,
@@ -33,11 +33,12 @@ class LogixTag(Tag):
     
     def save_to_db(self, session: "db_session") -> int:
         id = super().save_to_db(session)
-        entry = session.query(self.orm).filter(self.orm.id == id).first()
+        entry = session.query(self.orm).filter(self.orm.id == id).filter(self.orm.connection_id == self.connection_id).first()
         if entry == None:
             entry = self.orm()
         entry.id = self.id
         entry.address = self.address
+        entry.connection_id = self.connection_id
         session.add(entry)
         session.commit()
         return entry.id
