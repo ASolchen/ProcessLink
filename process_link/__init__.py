@@ -23,7 +23,7 @@
 #
 
 import imp
-from .manager import *
+from .process_link import *
 from .connection import *
 from .tag import *
 from .database import *

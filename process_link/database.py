@@ -49,7 +49,7 @@ class DuplicateIdError(DatabaseError):
 
 ConnectionsBase = declarative_base()
 
-class ConnectionTable(ConnectionsBase): # this table holds all tag values being subscribed to
+class ConnectionTable(ConnectionsBase):
     __tablename__ = 'connection-params-local'
     id = Column(String, primary_key=True)
     connection_type = Column(String, nullable=False)

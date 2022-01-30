@@ -22,16 +22,22 @@
 # SOFTWARE.
 #
 
+from imp import acquire_lock
+import threading, time
 import re
 from typing import Any, Optional
 from .api import APIClass, PropertyError
 from .tag import Tag
 from .database import ConnectionDb
 
-__all__ = ["Connection"]
+__all__ = ["Connection", "TAG_TYPES", "UnknownConnectionError"]
 
 TAG_TYPES = {'local': Tag}
 
+class UnknownConnectionError(Exception):
+    """
+    raised when getting a connection that does not exist
+    """
 
 class Connection(APIClass):
     """
@@ -76,8 +82,9 @@ class Connection(APIClass):
 
     
 
-    def __init__(self, params: dict) -> None:
+    def __init__(self, process_link: "ProcessLink", params: dict) -> None:
         super().__init__()
+        self.process_link = process_link
         self._tag_types = TAG_TYPES
         self.properties += ['id', 'connection_type', 'description', 'tags']
         try:
@@ -90,7 +97,33 @@ class Connection(APIClass):
         self._description = params.get('description')
         self._tags = {}
         self.base_orm = ConnectionDb.models["connection-params-local"] # database object-relational-model
-        #then set props
+        self.polled_tags = []
+        self.thread_lock = False #thread lock used within the connection so polled_tags cannot change during polling
+        self.poll_thread = threading.Thread(target=self.poll)
+        self.poll_thread.setDaemon(True)
+        self.polling = False
+
+
+    def set_polling(self, should_poll):
+        if should_poll and not self.polling:
+            self.poll_thread.start()
+        self.polling = should_poll
+
+
+    def poll(self, *args):
+        while(self.polling):
+            ts = time.time()
+            updates = {}
+            while(self.thread_lock):
+                time.sleep(0.001)
+            self.thread_lock = True
+            for tag in self.polled_tags:
+                if not tag in updates:
+                    updates[tag] = []
+                updates[tag].append((3.14159, ts))
+            self.process_link.update_handler.store_updates(updates)
+            self.thread_lock = False
+            time.sleep((ts+0.05)-time.time())
     
     def new_tag(self, params) -> "Tag":
         """
@@ -125,4 +158,31 @@ class Connection(APIClass):
         for tag in tags:
             params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id, self.id)
             self.new_tag(params)
+
+    def aquire_lock(self) -> None:
+        """
+        used for safely updating and using data from multiple threads
+        """
+        while(self.thread_lock):
+            time.sleep(0.001)
+        self.thread_lock = True
+
+    def update_polled_tags(self, sub_tags: list) -> None:
+        self.aquire_lock()
+        for tag in sub_tags:
+            if tag not in self.polled_tags:
+                self.polled_tags.append(tag)
+        hitlist = []
+        for i, tag in enumerate(self.polled_tags):
+            if not tag in sub_tags:
+                hitlist.append(i)
+        for i in range(len(hitlist)-1, -1, -1): # iter in reverse so popping doesn't change index of the remaining tags
+            self.polled_tags.pop(i)
+        self.set_polling(bool(len(self.polled_tags)))
+        self.thread_lock = False
+
+
+
+
+        
 

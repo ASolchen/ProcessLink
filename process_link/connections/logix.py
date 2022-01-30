@@ -1,6 +1,6 @@
 from pycomm3 import LogixDriver
 
-from data_manager.database import ConnectionDb
+from process_link.database import ConnectionDb
 from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
@@ -88,8 +88,8 @@ class LogixConnection(Connection):
             })
         return params
 
-    def __init__(self, params: dict) -> None:
-        super().__init__(params)
+    def __init__(self, manager: "ProcessLink", params: dict) -> None:
+        super().__init__(manager, params)
         self.properties += ['pollrate', 'auto_connect', 'host', 'port']
         self._connection_type = "logix"
         self.orm = ConnectionDb.models["connection-params-logix"]
