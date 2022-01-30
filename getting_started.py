@@ -34,8 +34,14 @@ if __name__ == "__main__":
     #print(link.sub_db.session.query(link.sub_db.orm).filter(link.sub_db.orm.connection == 'Fred8').all())
     link.subscribe("[Fred0]Tag0", "Display01")
     link.subscribe("[Fred0]Tag1", "Display01")
+    link.subscribe("[Fred0]Tag0", "Display02", latest_only=False) #get buffered values
+    link.subscribe("[Fred0]Tag1", "Display02")
     time.sleep(1)
     for x in range(10):
-        link.get_tag_updates("Display01")
-        time.sleep(1)
+        print(link.get_tag_updates("Display01"))
+        time.sleep(0.5)
+    
+    for x in range(10):
+        print(link.get_tag_updates("Display02"))
+        time.sleep(0.5)
     link.close_db()

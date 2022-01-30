@@ -19,7 +19,7 @@ class SubscriptionTable(SubscriptionBase): # this table holds all tag values bei
     sub_id = Column(String, nullable=False)
     tagname = Column(String, nullable=False)
     last_read = Column(Float, default=0.0)
-    latest_only = Column(Boolean, default=True) #if True, latest value overwrites else all are buffered between updates
+    latest_only = Column(Boolean) #if True, latest value overwrites else all are buffered between updates
 
 class DataTable(SubscriptionBase):
     __tablename__ = 'data'

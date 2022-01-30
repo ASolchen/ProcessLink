@@ -23,7 +23,7 @@
 #
 from typing import Any, Optional, Callable
 import os, time
-
+from sqlalchemy import desc
 from pycomm3 import tag
 from .api import APIClass, PropertyError
 
@@ -99,7 +99,7 @@ class ProcessLink(APIClass):
     def parse_tagname(self, tagname: str) -> list[str, str]:
         return tagname.replace("[","").split("]")
 
-    def subscribe(self, tagname: str, id: str) -> "Tag":
+    def subscribe(self, tagname: str, id: str, latest_only: bool=True) -> "Tag":
         """
         subscribe to a tag. Expected tagname format is '[connection]tag'
         sends the updates back when requested later using get_tag_updates() e.g.
@@ -121,9 +121,11 @@ class ProcessLink(APIClass):
             sub = self.sub_db.sub_orm()
             sub.sub_id = id
             sub.tagname = tagname
+            sub.latest_only = latest_only
             self.sub_db.session.add(sub)
             self.sub_db.session.commit()
-            res = session.query(orm).filter(orm.tagname == tagname).distinct(orm.tagname).all()
+            taglist = []
+            res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
             taglist = [t.tagname for t in res]
             conn.update_polled_tags(taglist)
 
@@ -183,11 +185,22 @@ class ProcessLink(APIClass):
         for tag_res in sub_res:
             tagname = tag_res.tagname
             last_read = tag_res.last_read
-            data_res = session.query(data_orm)\
+            if tag_res.latest_only:
+                data_res = session.query(data_orm)\
                 .filter(data_orm.tagname == tagname)\
                 .filter(data_orm.timestamp > last_read)\
+                .order_by(desc(data_orm.timestamp))\
+                .limit(1)\
                     .all()
-            tag_updates = [(t.value, t.timestamp) for t in data_res]
+            else:
+                data_res = session.query(data_orm)\
+                    .filter(data_orm.tagname == tagname)\
+                    .filter(data_orm.timestamp > last_read)\
+                        .all()
+            ##.filter(data_orm.timestamp > last_read)\
+            tag_updates = []
+            for t in data_res:
+                tag_updates.append((t.value, t.timestamp))
             updates[tagname] = tag_updates
             tag_res.last_read = ts
             session.add(tag_res) #update the "last_read" value on the tag sub
@@ -197,8 +210,12 @@ class ProcessLink(APIClass):
                 .order_by(sub_orm.last_read).first()
             if purge_time_res: # all records before this can be removed
                 purge_time = purge_time_res.last_read
-                x = session.query(data_orm).filter(data_orm.timestamp <= purge_time).delete()
+                x = session.query(data_orm)\
+                    .filter(data_orm.tagname == tagname)\
+                    .filter(data_orm.timestamp <= purge_time)\
+                        .delete()
         session.commit()
+        return updates
 
     def store_updates(self, updates):
         """
@@ -216,9 +233,6 @@ class ProcessLink(APIClass):
                         )
                     )
         session.commit()
-        res = session.query(data_orm).all()
-        print([(row.tagname, row.timestamp) for row in res])
-
         
 
             
