@@ -1,12 +1,12 @@
 ===========
-data_manger
+ProcessLink
 ===========
 A data collection library focused on industrial controls
 
 Introduction
 ============
 
-``data_manager`` is intended for collection of data from PLCs and other industrial controllers 
+``ProcessLink`` is intended for collection of data from PLCs and other industrial controllers 
 
 .. _matplotlib: https://matplotlib.org/
 
@@ -38,4 +38,4 @@ If you'd like to contribute or are having an issue, please read the `Contributin
 
 License
 =======
-``data_manager`` is distributed under the MIT License
+``ProcessLink`` is distributed under the MIT License
