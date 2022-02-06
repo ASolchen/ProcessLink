@@ -1,6 +1,6 @@
 from pycomm3 import LogixDriver
 
-from process_link.database import ConnectionDb
+from ..database import ConnectionDb
 from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
