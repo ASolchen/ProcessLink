@@ -1,5 +1,5 @@
+import time
 from pycomm3 import LogixDriver
-
 from ..database import ConnectionDb
 from ..tag import Tag
 from ..connection import Connection
@@ -114,3 +114,23 @@ class LogixConnection(Connection):
         session.add(entry)
         session.commit()
         return entry.id
+
+    def poll(self, *args):
+        with LogixDriver(self.host) as plc:
+            while(self.polling):
+                ts = time.time()
+                while(self.thread_lock):
+                    time.sleep(0.001)
+                self.thread_lock = True
+                sub_tags= {}
+                for tag in self.polled_tags:
+                    sub_tags[tag] = self.tags.get(self.process_link.parse_tagname(tag)[1]).address
+                updates = {}
+                plc_res = plc.read(*[addr for t, addr in sub_tags.items()])
+                for idx, tag in enumerate(sub_tags):
+                    if not tag in updates:
+                        updates[tag] = []
+                    updates[tag].append((plc_res[idx].value, ts))
+                self.process_link.update_handler.store_updates(updates)
+                self.thread_lock = False
+                time.sleep(max(0, (ts+self.pollrate)-time.time()))

@@ -156,6 +156,8 @@ class ProcessLink(APIClass):
     def save_connection(self, conn: "Connection") -> None:
         if self.db_interface.session:
             conn.save_to_db(self.db_interface.session)
+        else:
+            raise DatabaseError("Database has not been loaded")
     
     def save_tag(self, tag: "Tag") -> None:
         if self.db_interface.session:
