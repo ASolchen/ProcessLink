@@ -22,7 +22,6 @@
 # SOFTWARE.
 #
 
-import imp
 from .process_link import *
 from .connection import *
 from .tag import *

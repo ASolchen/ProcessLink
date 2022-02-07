@@ -24,7 +24,6 @@
 from typing import Any, Optional, Callable
 import os, time
 from sqlalchemy import desc
-from pycomm3 import tag
 from .api import APIClass, PropertyError
 
 from .connection import Connection, TAG_TYPES, UnknownConnectionError
@@ -34,12 +33,9 @@ from .subscription import SubscriptionDb, UpdateHandler
 __all__ = ["ProcessLink"]
 
 CONNECTION_TYPES = {'local': Connection}
-try:
-    from .connections.logix import LogixConnection, LogixTag
-    CONNECTION_TYPES['logix'] =  LogixConnection
-    TAG_TYPES['logix'] =  LogixTag
-except ImportError:
-    pass
+from .connections.logix import LogixConnection, LogixTag
+CONNECTION_TYPES['logix'] =  LogixConnection
+TAG_TYPES['logix'] =  LogixTag
 
 class ProcessLink(APIClass):
 
