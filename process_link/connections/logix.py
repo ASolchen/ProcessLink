@@ -6,9 +6,14 @@ from ..connection import Connection
 from ..api import PropertyError
 
 class LogixTag(Tag):
+    ####################################New
     @property
     def address(self) -> str:
         return self._address
+    @address.setter
+    def address(self, value: str) -> None:
+        self._address = value
+    ####################################New
 
     @classmethod
     def get_params_from_db(cls, session, id: str, connection_id: str):
@@ -114,6 +119,11 @@ class LogixConnection(Connection):
         session.add(entry)
         session.commit()
         return entry.id
+
+########################New
+    def return_tag_parameters(self,*args):
+        return ['id', 'connection_id', 'description','datatype','tag_type','address']
+########################New
 
     def poll(self, *args):
         with LogixDriver(self.host) as plc:
