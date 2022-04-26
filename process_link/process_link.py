@@ -24,6 +24,9 @@
 from typing import Any, Optional, Callable
 import os, time
 from sqlalchemy import desc
+####################Different
+from pycomm3 import tag
+#####################
 from .api import APIClass, PropertyError
 
 from .connection import Connection, TAG_TYPES, UnknownConnectionError
@@ -154,7 +157,30 @@ class ProcessLink(APIClass):
             conn.save_to_db(self.db_interface.session)
         else:
             raise DatabaseError("Database has not been loaded")
-    
+
+########################New
+    def get_connection_params(self, conn: "Connection",conx_id) -> None:
+        if self.db_interface.session:
+            return conn.get_params_from_db(self.db_interface.session,conx_id)
+
+    def delete_connection(self, conn: "Connection",conx_id) -> None:
+        try:
+            del self.connections[conx_id]
+            if self.db_interface.session:
+                conn.delete_from_db(self.db_interface.session,conx_id)
+        except KeyError as e:
+            raise PropertyError(f'Connection does not exist: {e}')
+
+    def delete_tag(self, tag: "Tag",tag_id,conx_id) -> None:
+        try:
+            del self.connections[conx_id].tags[tag_id]
+            if self.db_interface.session:
+                tag.delete_from_db(self.db_interface.session,tag_id)
+        except KeyError as e:
+            raise PropertyError(f'Tag does not exist: {e}')
+
+########################New  
+
     def save_tag(self, tag: "Tag") -> None:
         if self.db_interface.session:
             tag.save_to_db(self.db_interface.session)

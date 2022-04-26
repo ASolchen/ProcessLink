@@ -151,13 +151,26 @@ class Connection(APIClass):
         if not self._id == entry.id:
             self._id = entry.id # if db created this, the widget has a new id
         return entry.id
-    
+
+########################New
+    def delete_from_db(self,session: "db_session",conx_id):
+        if conx_id != None:
+            session.query(self.base_orm).filter(self.base_orm.id == conx_id).delete()
+            session.commit()
+########################New
+
     def load_tags_from_db(self, session):
         orm = ConnectionDb.models['tag-params-local']
         tags = session.query(orm).filter(orm.connection_id == self.id).all()
         for tag in tags:
             params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id, self.id)
             self.new_tag(params)
+
+########################New 
+    def return_tag_parameters(self,*args):
+        #default for local connection
+        return ['id', 'connection_id', 'description','datatype','tag_type']
+########################New 
 
     def aquire_lock(self) -> None:
         """

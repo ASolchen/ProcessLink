@@ -80,7 +80,9 @@ class Tag(APIClass):
                 'id': tag.id,
                 'connection_id': tag.connection_id,
                 'description': tag.description,
-                'datatype': tag.description,
+                #####################corrected next three lines###########################################################################################################
+                'datatype': tag.datatype,
+                'tag_type':tag.tag_type,
                 'value': tag.value,
             }
         return params
@@ -120,3 +122,9 @@ class Tag(APIClass):
             self._id = entry.id
         return entry.id
 
+########################New
+    def delete_from_db(self,session: "db_session",tag_id):
+        if tag_id != None:
+            session.query(self.base_orm).filter(self.base_orm.id == tag_id).delete()
+            session.commit()
+########################New
