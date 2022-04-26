@@ -69,7 +69,7 @@ class LogixConnection(Connection):
     def host(self) -> str:
         return self._host
     @host.setter
-    def port(self, value: str) -> None:
+    def host(self, value: str) -> None:
         self._host = value
 
     @property
@@ -101,10 +101,7 @@ class LogixConnection(Connection):
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 44818
-        try:
-            self._host = params['host']
-        except KeyError as e:
-            raise PropertyError(f"Missing expected property {e}")
+        self._host = params.get('host') or '127.0.0.1'
 
     def save_to_db(self, session: "db_session") -> str:
         id = super().save_to_db(session)
@@ -120,10 +117,8 @@ class LogixConnection(Connection):
         session.commit()
         return entry.id
 
-########################New
     def return_tag_parameters(self,*args):
         return ['id', 'connection_id', 'description','datatype','tag_type','address']
-########################New
 
     def poll(self, *args):
         with LogixDriver(self.host) as plc:
