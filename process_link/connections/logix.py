@@ -132,6 +132,8 @@ class LogixConnection(Connection):
                     sub_tags[tag] = self.tags.get(self.process_link.parse_tagname(tag)[1]).address
                 updates = {}
                 plc_res = plc.read(*[addr for t, addr in sub_tags.items()])
+                if not isinstance(plc_res, list): #result expected to be a list. if single tag, make it a list of one
+                    plc_res = [plc_res,]
                 for idx, tag in enumerate(sub_tags):
                     if not tag in updates:
                         updates[tag] = []
