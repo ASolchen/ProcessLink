@@ -105,6 +105,7 @@ class Connection(APIClass):
 
 
     def set_polling(self, should_poll):
+        #### HOW DO YOU STOP IT POLLING
         if should_poll and not self.polling:
             self.poll_thread.start()
         self.polling = should_poll
@@ -151,13 +152,22 @@ class Connection(APIClass):
         if not self._id == entry.id:
             self._id = entry.id # if db created this, the widget has a new id
         return entry.id
-    
+########################New
+    def delete_from_db(self,session: "db_session",conx_id):
+        if conx_id != None:
+            session.query(self.base_orm).filter(self.base_orm.id == conx_id).delete()
+            session.commit()
+########################New
     def load_tags_from_db(self, session):
         orm = ConnectionDb.models['tag-params-local']
         tags = session.query(orm).filter(orm.connection_id == self.id).all()
         for tag in tags:
             params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id, self.id)
             self.new_tag(params)
+########################New 
+    def return_tag_parameters(self,*args):
+        #default for local connection
+        return ['id', 'connection_id', 'description','datatype','tag_type','value']
 
     def aquire_lock(self) -> None:
         """
@@ -181,6 +191,24 @@ class Connection(APIClass):
         self.set_polling(bool(len(self.polled_tags)))
         self.thread_lock = False
 
+#############################New
+    def remove_polled_tags(self, sub_tags: list) -> None:
+        ####Not sure this is going to work right
+        self.aquire_lock()
+        for tag in sub_tags:
+            if tag in self.polled_tags:
+                self.polled_tags.remove(tag)
+        hitlist = []
+        for i, tag in enumerate(self.polled_tags):
+            if not tag in sub_tags:
+                hitlist.append(i)
+        for i in range(len(hitlist)-1, -1, -1): # iter in reverse so popping doesn't change index of the remaining tags
+            self.polled_tags.pop(i)
+        self.set_polling(bool(len(self.polled_tags)))
+        self.thread_lock = False
+
+
+#############################New
 
 
 

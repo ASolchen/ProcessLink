@@ -27,6 +27,8 @@ from sqlalchemy import desc
 from pycomm3 import tag
 from .api import APIClass, PropertyError
 
+
+
 from .connection import Connection, TAG_TYPES, UnknownConnectionError
 from .tag import Tag
 from .database import ConnectionDb, DatabaseError
@@ -38,7 +40,11 @@ try:
     from .connections.logix import LogixConnection, LogixTag
     CONNECTION_TYPES['logix'] =  LogixConnection
     TAG_TYPES['logix'] =  LogixTag
+    from .connections.modbus_tcp import ModbusTcpTag, ModbusTCPConnection
+    CONNECTION_TYPES['modbusTCP'] =  ModbusTCPConnection
+    TAG_TYPES['modbusTCP'] =  ModbusTcpTag
 except ImportError:
+    print('import error')
     pass
 
 class ProcessLink(APIClass):
@@ -105,6 +111,7 @@ class ProcessLink(APIClass):
         sends the updates back when requested later using get_tag_updates() e.g.
         {"[MyConn]MyTag}": {"value": 3.14, "timestamp": 16000203.7}, }.
         """
+        print('subscribe')
         session = self.sub_db.session
         orm = self.sub_db.sub_orm
         conn_name, tag_name = self.parse_tagname(tagname)
@@ -128,6 +135,35 @@ class ProcessLink(APIClass):
             res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
             taglist = [t.tagname for t in res]
             conn.update_polled_tags(taglist)
+
+
+    ##########################New
+    def unsubscribe(self, tagname: str, id: str, latest_only: bool=True) -> "Tag":
+        """
+        subscribe to a tag. Expected tagname format is '[connection]tag'
+        """
+        session = self.sub_db.session
+        orm = self.sub_db.sub_orm
+        conn_name, tag_name = self.parse_tagname(tagname)
+        conn = self.connections.get(conn_name)
+        try:
+            conn = self.connections[conn_name]
+        except KeyError as e:
+            raise UnknownConnectionError(f"Error finding connection '{conn_name}' while subscribing to {tagname}")
+        sub = session.query(orm)\
+            .filter(orm.sub_id == id)\
+            .filter(orm.tagname == tagname)\
+                .first()
+        if sub != None: #existing tag to remove
+            session.query(orm).filter(orm.sub_id == id).filter(orm.tagname == tagname).delete()
+            session.commit()
+            taglist = []
+            res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
+            taglist = [t.tagname for t in res]
+            conn.remove_polled_tags(taglist)
+
+
+    ##########################New
 
     def load_db(self) -> bool:
         """
@@ -156,7 +192,32 @@ class ProcessLink(APIClass):
     def save_connection(self, conn: "Connection") -> None:
         if self.db_interface.session:
             conn.save_to_db(self.db_interface.session)
-    
+        else:
+            raise DatabaseError("Database has not been loaded")
+
+########################New
+    def get_connection_params(self, conn: "Connection",conx_id) -> None:
+        if self.db_interface.session:
+            return conn.get_params_from_db(self.db_interface.session,conx_id)
+
+    def delete_connection(self, conn: "Connection",conx_id) -> None:
+        try:
+            del self.connections[conx_id]
+            if self.db_interface.session:
+                conn.delete_from_db(self.db_interface.session,conx_id)
+        except KeyError as e:
+            raise PropertyError(f'Connection does not exist: {e}')
+
+    def delete_tag(self, tag: "Tag",tag_id,conx_id) -> None:
+        try:
+            del self.connections[conx_id].tags[tag_id]
+            if self.db_interface.session:
+                tag.delete_from_db(self.db_interface.session,tag_id)
+        except KeyError as e:
+            raise PropertyError(f'Tag does not exist: {e}')
+
+########################New    
+
     def save_tag(self, tag: "Tag") -> None:
         if self.db_interface.session:
             tag.save_to_db(self.db_interface.session)

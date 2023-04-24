@@ -92,6 +92,7 @@ class ConnectionParamsEthernetIP(ConnectionsBase):
     host = Column(String, default='127.0.0.1') #uses pycomm3 syntax for PLC path
     port = Column(Integer, default=44818)
 
+
 class ConnectionParamsOPC(ConnectionsBase):
     __tablename__= 'connection-params-opc'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
@@ -100,6 +101,7 @@ class ConnectionParamsOPC(ConnectionsBase):
     auto_connect = Column(Boolean, default=False)
     host = Column(String, default='opc.tcp://127.0.0.1:49320') #uses pyopc url syntax for path
 
+
 class ConnectionParamsGrbl(ConnectionsBase):
     __tablename__= 'connection-params-grbl'
     relationship('ConnectionTable', backref=backref('children', passive_deletes=True))
@@ -107,6 +109,7 @@ class ConnectionParamsGrbl(ConnectionsBase):
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     port = Column(String, default='/dev/ttyACM0')
+
 
 class TagTable(ConnectionsBase): # this table holds all tag values being subscribed to
     __tablename__ = 'tag-params-local'
@@ -152,6 +155,7 @@ class TagParamsOPC(ConnectionsBase):
                                            [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
                       {})
     node_id = Column(String, nullable=False)
+
 
 class TagParamsGrbl(ConnectionsBase):
     __tablename__= 'tag-params-grbl'
