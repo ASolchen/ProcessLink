@@ -72,6 +72,18 @@ class ConxManager():
         t = self.connections[conx_id].new_tag(params)
         self.tag_subs[conx_id]['tags'].append({"id": params.get('id'), "obj": t})
 
+    def delete_tag(self,conx_id,tag_id):
+        if not self.connections.get(conx_id):
+            raise Exception(f"Fuck! no connection named {conx_id}")
+        if not self.connections[conx_id].polling:
+            raise Exception(f"Can't delete tag while polling {conx_id}")
+        for i in range (len(self.tag_subs[conx_id]['tags'])):
+            if self.tag_subs[conx_id]['tags'][i]['id'] == tag_id:
+                del(self.tag_subs[conx_id]['tags'][i])
+        self.link.delete_tag(self.connections[conx_id].tags[tag_id],tag_id,conx_id)
+        #####################Need to update polling list or prevent while connection connected
+ 
+
     def connect(self, conx_id):
         if not self.connections.get(conx_id):
             raise Exception(f"Fuck! no connection named {conx_id}")
@@ -81,14 +93,31 @@ class ConxManager():
             self.tag_subs[sub]['connected'] = True
 
     def disconnect(self, conx_id):
-        pass        #Need to create the unsubscribe method
+        '''Need to create the unsubscribe method'''
 
-        # if not self.connections.get(conx_id):
-        #     raise Exception(f"Fuck! no connection named {conx_id}")
-        # for sub in self.tag_subs:
-        #     for t in self.tag_subs[sub]['tags']:
-        #         self.link.unsubscribe(f"[{sub}]{t.get('id')}", sub, latest_only=False)
-        #     self.tag_subs[sub]['connected'] = True
+        if not self.connections.get(conx_id):
+             raise Exception(f"Fuck! no connection named {conx_id}")
+        self.tag_subs[conx_id]['connected'] = False
+        for sub in self.tag_subs:
+            for t in self.tag_subs[sub]['tags']:
+                self.link.unsubscribe(f"[{sub}]{t.get('id')}", sub, latest_only=False)
+            self.tag_subs[sub]['connected'] = False
+
+            
+    def is_polling(self, conx_id):
+        'return whether connection is connected and polling data'
+        if not self.connections.get(conx_id):
+            return False
+        else:
+            return self.connections[conx_id].polling
+
+    def is_tag(self, conx_id, tag_id):
+        'return whether tag is added to connection'
+        res = False
+        for i in range (len(self.tag_subs[conx_id]['tags'])):
+            if self.tag_subs[conx_id]['tags'][i]['id'] == tag_id:
+                res = True
+        return res
 
     def get_data(self, *args):
         data = {}
@@ -108,10 +137,17 @@ con_man.add_con({"id": f"Fred",
 con_man.new_tag('Fred', {"id": f"PanelAmps", "description": f"Blah Blah","value":0,"address": 99 })
 con_man.new_tag('Fred', {"id": f"PanelVolts", "description": f"Blah Blah","value":0,"address": 149 })
 con_man.connect('Fred')
-for x in range(20):
+for x in range(2):
     print(con_man.get_data())
     time.sleep(0.5)
+con_man.delete_tag('Fred', "PanelVolts")
+print(con_man.get_data())
+print('result',con_man.is_polling('Fred'))
+print('result2',con_man.is_polling('Fredddy'))
+print('result3',con_man.is_tag('Fred','PanelAmps'))
+print('result4',con_man.is_tag('Fred','PanelVolts'))
 
+con_man.disconnect('Fred')
     
 
     
