@@ -94,8 +94,9 @@ class Connection(APIClass):
             raise PropertyError(f"Missing expected property {e}")
         self._id = params.get('id')
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
-        self._description = params.get('description')
+        self._description = '' if 'description' not in params else params.get('description')
         self._tags = {}
+        self._pollrate = 0.5 if 'pollrate' not in params else params.get('pollrate')
         self.base_orm = ConnectionDb.models["connection-params-local"] # database object-relational-model
         self.polled_tags = []
         self.thread_lock = False #thread lock used within the connection so polled_tags cannot change during polling
@@ -123,7 +124,7 @@ class Connection(APIClass):
                 updates[tag].append((3.14159, ts))
             self.process_link.update_handler.store_updates(updates)
             self.thread_lock = False
-            time.sleep((ts+0.05)-time.time())
+            time.sleep((ts+self._pollrate)-time.time())
     
     def new_tag(self, params) -> "Tag":
         """
