@@ -6,14 +6,14 @@ from ..connection import Connection
 from ..api import PropertyError
 
 class LogixTag(Tag):
-    ####################################New
+    ####################################
     @property
     def address(self) -> str:
         return self._address
     @address.setter
     def address(self, value: str) -> None:
         self._address = value
-    ####################################New
+    ####################################
 
     @classmethod
     def get_params_from_db(cls, session, id: str, connection_id: str):
@@ -101,7 +101,10 @@ class LogixConnection(Connection):
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 44818
-        self._host = params.get('host') or '127.0.0.1'
+        try:
+            self._host = params.get('host') or '127.0.0.1'
+        except KeyError as e:
+            raise PropertyError(f"Missing expected property {e}")
 
     def save_to_db(self, session: "db_session") -> str:
         id = super().save_to_db(session)
@@ -116,28 +119,6 @@ class LogixConnection(Connection):
         session.add(entry)
         session.commit()
         return entry.id
-
+########################New
     def return_tag_parameters(self,*args):
-        return ['id', 'connection_id', 'description','datatype','tag_type','address']
-
-    def poll(self, *args):
-        with LogixDriver(self.host) as plc:
-            while(self.polling):
-                ts = time.time()
-                while(self.thread_lock):
-                    time.sleep(0.001)
-                self.thread_lock = True
-                sub_tags= {}
-                for tag in self.polled_tags:
-                    sub_tags[tag] = self.tags.get(self.process_link.parse_tagname(tag)[1]).address
-                updates = {}
-                plc_res = plc.read(*[addr for t, addr in sub_tags.items()])
-                if not isinstance(plc_res, list): #result expected to be a list. if single tag, make it a list of one
-                    plc_res = [plc_res,]
-                for idx, tag in enumerate(sub_tags):
-                    if not tag in updates:
-                        updates[tag] = []
-                    updates[tag].append((plc_res[idx].value, ts))
-                self.process_link.update_handler.store_updates(updates)
-                self.thread_lock = False
-                time.sleep(max(0, (ts+self.pollrate)-time.time()))
+        return ['id', 'connection_id', 'description','datatype','tag_type','address','value']

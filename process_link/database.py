@@ -70,6 +70,7 @@ class ConnectionParamsModbusRTU(ConnectionsBase):
     parity = Column(String, default='N')
     byte_size = Column(Integer, default=8)
     retries = Column(Integer, default=3)
+    status = Column(Boolean, default=False)
     
 
 class ConnectionParamsModbusTCP(ConnectionsBase):
@@ -81,6 +82,7 @@ class ConnectionParamsModbusTCP(ConnectionsBase):
     host = Column(String, default='127.0.0.1')
     port = Column(Integer, default=502)
     station_id = Column(String, default=1)
+    status = Column(Boolean, default=False)
 
 
 class ConnectionParamsEthernetIP(ConnectionsBase):
@@ -91,6 +93,8 @@ class ConnectionParamsEthernetIP(ConnectionsBase):
     auto_connect = Column(Boolean, default=False)
     host = Column(String, default='127.0.0.1') #uses pycomm3 syntax for PLC path
     port = Column(Integer, default=44818)
+    status = Column(Boolean, default=False)
+
 
 class ConnectionParamsOPC(ConnectionsBase):
     __tablename__= 'connection-params-opc'
@@ -99,6 +103,8 @@ class ConnectionParamsOPC(ConnectionsBase):
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     host = Column(String, default='opc.tcp://127.0.0.1:49320') #uses pyopc url syntax for path
+    status = Column(Boolean, default=False)
+
 
 class ConnectionParamsGrbl(ConnectionsBase):
     __tablename__= 'connection-params-grbl'
@@ -107,6 +113,8 @@ class ConnectionParamsGrbl(ConnectionsBase):
     pollrate = Column(Float, default=0.5)
     auto_connect = Column(Boolean, default=False)
     port = Column(String, default='/dev/ttyACM0')
+    status = Column(Boolean, default=False)
+
 
 class TagTable(ConnectionsBase): # this table holds all tag values being subscribed to
     __tablename__ = 'tag-params-local'
@@ -138,6 +146,7 @@ class TagParamsModbus(ConnectionsBase):
                                            [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
                       {})
     address = Column(Integer, nullable=False)
+    func_type = Column(Integer, nullable=False)
     bit = Column(Integer, default=0)
     word_swapped = Column(Boolean, default=False)
     byte_swapped = Column(Boolean, default=False)
@@ -152,6 +161,7 @@ class TagParamsOPC(ConnectionsBase):
                                            [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
                       {})
     node_id = Column(String, nullable=False)
+
 
 class TagParamsGrbl(ConnectionsBase):
     __tablename__= 'tag-params-grbl'

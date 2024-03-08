@@ -92,7 +92,7 @@ class Tag(APIClass):
         
     def __init__(self, params: dict) -> None:
         super().__init__()
-        self.properties += ['tagname', 'id', 'connection_id', 'datatype', 'description', 'value']
+        self.properties += ['tagname', 'id', 'connection_id', 'datatype', 'description', 'value']       #Base tag properties 
         try:
             params['id']
             params['connection_id']
@@ -128,3 +128,4 @@ class Tag(APIClass):
             session.query(self.base_orm).filter(self.base_orm.id == tag_id).delete()
             session.commit()
 ########################New
+

@@ -29,6 +29,8 @@ from pycomm3 import tag
 #####################
 from .api import APIClass, PropertyError
 
+
+
 from .connection import Connection, TAG_TYPES, UnknownConnectionError
 from .tag import Tag
 from .database import ConnectionDb, DatabaseError
@@ -36,13 +38,16 @@ from .subscription import SubscriptionDb, UpdateHandler
 __all__ = ["ProcessLink"]
 
 CONNECTION_TYPES = {'local': Connection}
-from .connections.logix import LogixConnection, LogixTag
-CONNECTION_TYPES['logix'] =  LogixConnection
-TAG_TYPES['logix'] =  LogixTag
-from .connections.modbus_tcp import ModbusTcpTag, ModbusTCPConnection
-CONNECTION_TYPES['modbusTCP'] =  ModbusTCPConnection
-TAG_TYPES['modbusTCP'] =  ModbusTcpTag
-
+try:
+    from .connections.logix import LogixConnection, LogixTag
+    CONNECTION_TYPES['logix'] =  LogixConnection
+    TAG_TYPES['logix'] =  LogixTag
+    from .connections.modbus_tcp import ModbusTcpTag, ModbusTCPConnection
+    CONNECTION_TYPES['modbusTCP'] =  ModbusTCPConnection
+    TAG_TYPES['modbusTCP'] =  ModbusTcpTag
+except ImportError:
+    print('import error')
+    pass
 
 class ProcessLink(APIClass):
 
@@ -132,6 +137,38 @@ class ProcessLink(APIClass):
             taglist = [t.tagname for t in res]
             conn.update_polled_tags(taglist)
 
+
+    ##########################New
+    def unsubscribe(self, tagname: str, id: str) -> "Tag":
+        """
+        unsubscribe a tag. Expected tagname format is '[connection]tag'
+        """
+        session = self.sub_db.session
+        orm = self.sub_db.sub_orm
+        conn_name, tag_name = self.parse_tagname(tagname)
+        conn = self.connections.get(conn_name)
+        try:
+            conn = self.connections[conn_name]
+        except KeyError as e:
+            raise UnknownConnectionError(f"Error finding connection '{conn_name}' while subscribing to {tagname}")
+        sub = session.query(orm)\
+            .filter(orm.sub_id == id)\
+            .filter(orm.tagname == tagname)\
+                .first()
+        if sub != None: #existing tag to remove
+            session.query(orm).filter(orm.sub_id == id).filter(orm.tagname == tagname).delete()
+            session.commit()
+            #taglist = []
+            #res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
+            #taglist = [t.tagname for t in res]
+            #print('taglist',taglist)
+            taglist = []
+            taglist.append(tagname)
+            conn.remove_polled_tags(taglist)
+
+
+    ##########################New
+
     def load_db(self) -> bool:
         """
         load the settings db. return True if successful, else false
@@ -176,12 +213,16 @@ class ProcessLink(APIClass):
             raise PropertyError(f'Connection does not exist: {e}')
 
     def delete_tag(self, tag: "Tag",tag_id,conx_id) -> None:
-        try:
-            del self.connections[conx_id].tags[tag_id]
-            if self.db_interface.session:
-                tag.delete_from_db(self.db_interface.session,tag_id)
-        except KeyError as e:
-            raise PropertyError(f'Tag does not exist: {e}')
+        print('Attemping to delete tag')
+        if not self.connections[conx_id].polling:
+            try:
+                del self.connections[conx_id].tags[tag_id]
+                if self.db_interface.session:
+                    tag.delete_from_db(self.db_interface.session,tag_id)
+            except KeyError as e:
+                raise PropertyError(f'Tag does not exist: {e}')
+        else:
+            print('Tag Cannot be deleted while connection stil active')
 
 ########################New  
 
@@ -266,7 +307,10 @@ class ProcessLink(APIClass):
                         )
                     )
         session.commit()
-        
+
+    def is_polling(self,conx_id,*args):
+        'return whether connection is connected and polling data'
+        return self.connections[conx_id].polling
 
             
 
