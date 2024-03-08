@@ -24,7 +24,9 @@
 from typing import Any, Optional, Callable
 import os, time
 from sqlalchemy import desc
+####################Different
 from pycomm3 import tag
+#####################
 from .api import APIClass, PropertyError
 
 
@@ -111,7 +113,6 @@ class ProcessLink(APIClass):
         sends the updates back when requested later using get_tag_updates() e.g.
         {"[MyConn]MyTag}": {"value": 3.14, "timestamp": 16000203.7}, }.
         """
-        print('subscribe')
         session = self.sub_db.session
         orm = self.sub_db.sub_orm
         conn_name, tag_name = self.parse_tagname(tagname)
@@ -138,9 +139,9 @@ class ProcessLink(APIClass):
 
 
     ##########################New
-    def unsubscribe(self, tagname: str, id: str, latest_only: bool=True) -> "Tag":
+    def unsubscribe(self, tagname: str, id: str) -> "Tag":
         """
-        subscribe to a tag. Expected tagname format is '[connection]tag'
+        unsubscribe a tag. Expected tagname format is '[connection]tag'
         """
         session = self.sub_db.session
         orm = self.sub_db.sub_orm
@@ -157,9 +158,12 @@ class ProcessLink(APIClass):
         if sub != None: #existing tag to remove
             session.query(orm).filter(orm.sub_id == id).filter(orm.tagname == tagname).delete()
             session.commit()
+            #taglist = []
+            #res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
+            #taglist = [t.tagname for t in res]
+            #print('taglist',taglist)
             taglist = []
-            res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
-            taglist = [t.tagname for t in res]
+            taglist.append(tagname)
             conn.remove_polled_tags(taglist)
 
 
@@ -209,14 +213,18 @@ class ProcessLink(APIClass):
             raise PropertyError(f'Connection does not exist: {e}')
 
     def delete_tag(self, tag: "Tag",tag_id,conx_id) -> None:
-        try:
-            del self.connections[conx_id].tags[tag_id]
-            if self.db_interface.session:
-                tag.delete_from_db(self.db_interface.session,tag_id)
-        except KeyError as e:
-            raise PropertyError(f'Tag does not exist: {e}')
+        print('Attemping to delete tag')
+        if not self.connections[conx_id].polling:
+            try:
+                del self.connections[conx_id].tags[tag_id]
+                if self.db_interface.session:
+                    tag.delete_from_db(self.db_interface.session,tag_id)
+            except KeyError as e:
+                raise PropertyError(f'Tag does not exist: {e}')
+        else:
+            print('Tag Cannot be deleted while connection stil active')
 
-########################New    
+########################New  
 
     def save_tag(self, tag: "Tag") -> None:
         if self.db_interface.session:
@@ -294,7 +302,10 @@ class ProcessLink(APIClass):
                         )
                     )
         session.commit()
-        
+
+    def is_polling(self,conx_id,*args):
+        'return whether connection is connected and polling data'
+        return self.connections[conx_id].polling
 
             
 

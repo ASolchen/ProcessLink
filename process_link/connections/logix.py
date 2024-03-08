@@ -1,5 +1,5 @@
+import time
 from pycomm3 import LogixDriver
-
 from ..database import ConnectionDb
 from ..tag import Tag
 from ..connection import Connection

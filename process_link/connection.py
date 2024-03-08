@@ -29,6 +29,7 @@ from typing import Any, Optional
 from .api import APIClass, PropertyError
 from .tag import Tag
 from .database import ConnectionDb
+from .connections.connection_manager import ConxManager
 
 __all__ = ["Connection", "TAG_TYPES", "UnknownConnectionError"]
 
@@ -99,17 +100,21 @@ class Connection(APIClass):
         self.base_orm = ConnectionDb.models["connection-params-local"] # database object-relational-model
         self.polled_tags = []
         self.thread_lock = False #thread lock used within the connection so polled_tags cannot change during polling
-        self.poll_thread = threading.Thread(target=self.poll)
-        self.poll_thread.setDaemon(True)
+        #self.poll_thread = obj
         self.polling = False
+        self.con_man = False
+    
+    def create_thread(self,*args):
+        poll_thread = threading.Thread(target=self.poll)
+        poll_thread.setDaemon(True)
+        return poll_thread
 
 
     def set_polling(self, should_poll):
-        #### HOW DO YOU STOP IT POLLING
         if should_poll and not self.polling:
-            self.poll_thread.start()
+            poll_thread = self.create_thread()
+            poll_thread.start()
         self.polling = should_poll
-
 
     def poll(self, *args):
         while(self.polling):
@@ -139,7 +144,6 @@ class Connection(APIClass):
         except KeyError as e:
             raise PropertyError(f'Error creating tag, unknown type: {e}')
         
-
     def save_to_db(self, session: "db_session") -> str:
         entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).first()
         if entry == None:
@@ -168,6 +172,7 @@ class Connection(APIClass):
     def return_tag_parameters(self,*args):
         #default for local connection
         return ['id', 'connection_id', 'description','datatype','tag_type','value']
+########################New 
 
     def aquire_lock(self) -> None:
         """
@@ -207,7 +212,24 @@ class Connection(APIClass):
         self.set_polling(bool(len(self.polled_tags)))
         self.thread_lock = False
 
+    def connect_connection(self,conx_id,conx_params,tags):
+        print('attemping connection')
+        self.con_man = ConxManager(self.process_link)
+        self.con_man.add_con(conx_params)
+        for t in tags:
+            self.con_man.new_tag(conx_id, tags[t])
+        self.con_man.connect(conx_id)   #connection manager connect method attempt
+        return self.con_man.is_polling(conx_id) #Returns whether connection was successful
 
+    def disconnect_connection(self,conx_id,conx_params,tags):
+        if self.con_man is not bool:
+            print('disconnecting', conx_id)
+            self.con_man.disconnect(conx_id)
+            status = self.con_man.is_polling(conx_id) #Returns whether disconnection was successful
+            self.con_man = False
+            return status
+        else:
+            pass
 #############################New
 
 

@@ -92,7 +92,7 @@ class Tag(APIClass):
         
     def __init__(self, params: dict) -> None:
         super().__init__()
-        self.properties += ['tagname', 'id', 'connection_id', 'datatype', 'description', 'value']
+        self.properties += ['tagname', 'id', 'connection_id', 'datatype', 'description', 'value']       #Base tag properties 
         try:
             params['id']
             params['connection_id']
