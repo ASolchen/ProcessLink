@@ -24,13 +24,15 @@
 
 from typing import Any, Optional
 from .api import APIClass, PropertyError
-from .database import ConnectionDb
+from .subscription import SubscriptionDb
 __all__ = ["Tag"]
 
 class Tag(APIClass):
     """
     The base tag class
     """
+    orm = SubscriptionDb.models['tag-params-local']
+
     @property
     def id(self) -> str:
         return self._id
@@ -71,9 +73,22 @@ class Tag(APIClass):
 
 
     @classmethod
+    def add_to_db(cls, plink, params):
+        query = {"query": lambda session: session.add(Tag.orm(id=params['id'],
+                                            connection_id=params['connection_id'],
+                                            description=params.get('description', ''),
+                                            datatype=params.get('datatype', ''),
+                                            tag_type=params.get('tag_type', ''),
+                                            value=params.get('value', ''),
+                                            )), 
+                "cols": []}
+        plink.add_query(query)
+
+
+    @classmethod
     def get_params_from_db(cls, session, id: str, connection_id:str):
         params = None
-        orm = ConnectionDb.models["tag-params-local"]
+        orm = SubscriptionDb.models["tag-params-local"]
         tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
         if tag:
             params = {
@@ -104,7 +119,7 @@ class Tag(APIClass):
         self._description = params.get("description")
         self._value = params.get("value")
         self._connection_id = params["connection_id"]
-        self.base_orm = ConnectionDb.models['tag-params-local']
+        self.base_orm = SubscriptionDb.models['tag-params-local']
     
     def save_to_db(self, session: "db_session") -> int:
         entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).filter(self.base_orm.connection_id == self.connection_id).first()

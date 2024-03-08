@@ -1,11 +1,14 @@
 import time
 from pycomm3 import LogixDriver
-from ..database import ConnectionDb
+from ..subscription import SubscriptionDb
 from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
 
 class LogixTag(Tag):
+
+    orm = SubscriptionDb.models["tag-params-logix"]
+
     ####################################New
     @property
     def address(self) -> str:
@@ -18,19 +21,28 @@ class LogixTag(Tag):
     @classmethod
     def get_params_from_db(cls, session, id: str, connection_id: str):
         params = super().get_params_from_db(session, id, connection_id)
-        orm = ConnectionDb.models["tag-params-logix"]
+        orm = SubscriptionDb.models["tag-params-logix"]
         tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
         if tag:
             params.update({
                 'address': tag.address,
             })
         return params
+
+    @classmethod
+    def add_to_db(cls, plink, params):
+        Tag.add_to_db(plink, params)
+        query = {"query": lambda session: session.add(LogixTag.orm(id=params['id'],
+                                            connection_id=params.get('connection_id'),                       
+                                            address=params.get('address', params['id'])
+                                            )), 
+                "cols": []}
+        plink.add_query(query)
     
     def __init__(self, params: dict) -> None:
         super().__init__(params)
         self.properties += ['address']
         self._tag_type = "logix"
-        self.orm = ConnectionDb.models['tag-params-logix']
         try:
             self._address = params['address']
         except KeyError as e:
@@ -51,6 +63,8 @@ class LogixTag(Tag):
 
 class LogixConnection(Connection):
 
+    orm = SubscriptionDb.models["connection-params-logix"]
+    
     @property
     def pollrate(self) -> float:
         return self._pollrate
@@ -82,7 +96,7 @@ class LogixConnection(Connection):
     @classmethod
     def get_params_from_db(cls, session, id: str):
         params = super().get_params_from_db(session, id)
-        orm = ConnectionDb.models["connection-params-logix"]
+        orm = SubscriptionDb.models["connection-params-logix"]
         conn = session.query(orm).filter(orm.id == id).first()
         if conn:
             params.update({
@@ -92,33 +106,37 @@ class LogixConnection(Connection):
                 'port': conn.port,
             })
         return params
+    
+    @classmethod
+    def return_tag_parameters(cls, *args):
+        return ['id', 'connection_id', 'description','datatype','tag_type','address']
+    
+    @classmethod
+    def add_to_db(cls, plink, params):
+        Connection.add_to_db(plink, params)
+        query = {"query": lambda session: session.add(LogixConnection.orm(id=params['id'],
+                                                                    pollrate=params.get('pollrate', 0.5),
+                                                                    auto_connect=params.get('auto_connect', False),
+                                                                    host=params.get('host', '127.0.0.1'),
+                                                                    port=params.get('port', 44818)
+                                                                    )), 
+                "cols": []}
+        plink.add_query(query)
 
     def __init__(self, manager: "ProcessLink", params: dict) -> None:
         super().__init__(manager, params)
         self.properties += ['pollrate', 'auto_connect', 'host', 'port']
         self._connection_type = "logix"
-        self.orm = ConnectionDb.models["connection-params-logix"]
+        
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 44818
         self._host = params.get('host') or '127.0.0.1'
+        query = {"query": lambda session: session.add(self.orm(pollrate=self.pollrate, auto_connect=self.auto_connect, host=self.host, port=self.port)),
+                        "cols": []        
+            }
+        self.process_link.add_query(query)
 
-    def save_to_db(self, session: "db_session") -> str:
-        id = super().save_to_db(session)
-        entry = session.query(self.orm).filter(self.orm.id == id).first()
-        if entry == None:
-            entry = self.orm()
-        entry.id = self.id
-        entry.pollrate = self.pollrate
-        entry.auto_connect = self.auto_connect
-        entry.host = self.host
-        entry.port = self.port
-        session.add(entry)
-        session.commit()
-        return entry.id
-
-    def return_tag_parameters(self,*args):
-        return ['id', 'connection_id', 'description','datatype','tag_type','address']
 
     def poll(self, *args):
         with LogixDriver(self.host) as plc:

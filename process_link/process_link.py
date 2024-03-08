@@ -21,6 +21,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
+import threading
+import queue
 from typing import Any, Optional, Callable
 import os, time
 from sqlalchemy import desc
@@ -32,6 +34,8 @@ from .api import APIClass, PropertyError
 from .connection import Connection, TAG_TYPES, UnknownConnectionError
 from .tag import Tag
 from .database import ConnectionDb, DatabaseError
+from .subscription import SubscriptionTable, DataTable
+
 from .subscription import SubscriptionDb, UpdateHandler
 __all__ = ["ProcessLink"]
 
@@ -51,17 +55,13 @@ class ProcessLink(APIClass):
         
     def __init__(self) -> None:
         super().__init__()
-        self.update_handler = UpdateHandler()
-        self._connection_types = CONNECTION_TYPES
-        self._tag_types = TAG_TYPES
-        self.properties += ['db_file', 'db_connection', 'connections', 'connection_types']
-        self._db = None
-        self._connections = {}
-        self._db_file = None
-        self.db_interface = ConnectionDb()
-        self.sub_db = SubscriptionDb()
-        self.sub_callbacks = {}
-
+        self.db = None
+        self.query_queue = queue.Queue()
+        self.result_queues = {}  # Dictionary to store result queues for each thread
+        # Start query thread
+        self.query_thread = threading.Thread(target=self._query_thread)
+        self.query_thread.start()
+        
 
     @property
     def connection_types(self) -> dict:
@@ -83,7 +83,69 @@ class ProcessLink(APIClass):
     def connections(self):
         return self._connections
 
-    def new_connection(self, params) -> "Connection":
+    def _query_thread(self):
+        self.db = SubscriptionDb()
+        while True:
+            query_info, result_queue, query_ready_event = self.query_queue.get()
+            query = query_info['query']
+            args = query_info['args']
+            kwargs = query_info['kwargs']
+
+            # Execute the query within the session
+            result = self.db.run_query(query)
+
+            # Put the result into the result queue
+            result_queue.put(result)
+
+            # Set the event to indicate that the query has been executed
+            query_ready_event.set()
+
+    def add_query(self, query, *args, **kwargs):
+        thread_id = threading.current_thread().ident  # Generate thread ID
+        result_queue = queue.Queue()
+        query_ready_event = threading.Event()
+
+        # Add the result queue and event to the dictionary
+        self.result_queues[thread_id] = (result_queue, query_ready_event)
+
+        # Add the query information and related queue/event to the main queue
+        query_info = {
+            'query': query,
+            'args': args,
+            'kwargs': kwargs
+        }
+        self.query_queue.put((query_info, result_queue, query_ready_event))
+
+        # Wait for the query to be executed by the other thread
+        query_ready_event.wait()
+
+        # Get the result from the result queue associated with this thread
+        result = result_queue.get()
+
+        # Clear the event for the next query
+        query_ready_event.clear()
+
+        return result
+
+    def query_attempt(self):
+        # sub_id = Column(String, nullable=False)
+        # tagname = Column(String, nullable=False)
+        # last_read = Column(Float, default=0.0)
+        # latest_only = Column(Boolean) #if True, latest value overwrites else all are buffered between updates
+        # for x in range(100):
+        #     query = {"query": lambda session: session.add(SubscriptionTable(sub_id="Sub", tagname=f"fred{x}", last_read=0, latest_only=False)),
+        #                 "cols": ["tagname", "sub_id"]
+        #     }
+        #     self.add_query(query)
+        query = {"query": lambda session: session.query(LogixTag.orm).all(),
+                 "cols": ['id', 'address']
+                 }
+        query = {"query": lambda session: session.query(Tag.orm).all(),
+                 "cols": ['id', 'connection_id', 'datatype', 'description', 'value']
+                 }
+        return self.add_query(query)
+
+    def new_connection(self, params):
         """
         pass params for the properties of the connection. This will include
         the connection type and extended properties for that type
@@ -94,10 +156,20 @@ class ProcessLink(APIClass):
         except KeyError as e:
             raise PropertyError(f'Error creating connection, missing parameter: {e}')
         try:
-            self.connections[params["id"]] = CONNECTION_TYPES[params['connection_type']](self, params)
-            return self.connections[params["id"]]
+            CONNECTION_TYPES[params['connection_type']].add_to_db(self, params)
         except KeyError as e:
             raise PropertyError(f'Error creating connection, unknown type: {e}')
+    
+    def new_tag(self, params):
+        """
+        pass params for the properties of the tag. This will include
+        the connection type and extended properties for that type
+        return the Tag() 
+        """
+        try:
+            TAG_TYPES[params.get('tag_type')].add_to_db(self, params)
+        except KeyError as e:
+            raise PropertyError(f'Error creating tag, unknown type: {e}')
 
     def parse_tagname(self, tagname: str) -> list[str, str]:
         return tagname.replace("[","").split("]")

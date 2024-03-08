@@ -28,7 +28,7 @@ import re
 from typing import Any, Optional
 from .api import APIClass, PropertyError
 from .tag import Tag
-from .database import ConnectionDb
+from .subscription import SubscriptionDb, ConnectionTable
 
 __all__ = ["Connection", "TAG_TYPES", "UnknownConnectionError"]
 
@@ -43,6 +43,7 @@ class Connection(APIClass):
     """
     The base connection class
     """
+    orm = SubscriptionDb.models["connection-params-local"] # database object-relational-model
 
     def __repr__(self) -> str:
         return f"Connection: {self.id}"
@@ -62,25 +63,18 @@ class Connection(APIClass):
     def description(self, value: str) -> None:
         self._description = value
 
-
     @property
     def tags(self):
         return self._tags
-
-    @classmethod
-    def get_params_from_db(cls, session, id: str):
-        params = None
-        orm = ConnectionDb.models["connection-params-local"]
-        conn = session.query(orm).filter(orm.id == id).first()
-        if conn:
-            params = {
-                'id': conn.id,
-                'connection_type': conn.connection_type,
-                'description': conn.description,
-            }
-        return params
-
     
+    @classmethod
+    def add_to_db(cls, plink, params):
+        query = {"query": lambda session: session.add(Connection.orm(id=params['id'],
+                                                                    connection_type=params['connection_type'],
+                                                                    description=params.get('description', ''))), 
+                "cols": []}
+        plink.add_query(query)
+
 
     def __init__(self, process_link: "ProcessLink", params: dict) -> None:
         super().__init__()
@@ -96,7 +90,11 @@ class Connection(APIClass):
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
         self._description = params.get('description')
         self._tags = {}
-        self.base_orm = ConnectionDb.models["connection-params-local"] # database object-relational-model
+        self.base_orm = SubscriptionDb.models["connection-params-local"] # database object-relational-model
+        query = {"query": lambda session: session.add(self.base_orm(id=self.id, connection_type=self.connection_type, description=self.description)),
+                        "cols": []
+            }
+        self.process_link.add_query(query)
         self.polled_tags = []
         self.thread_lock = False #thread lock used within the connection so polled_tags cannot change during polling
         self.poll_thread = threading.Thread(target=self.poll)
@@ -125,32 +123,8 @@ class Connection(APIClass):
             self.thread_lock = False
             time.sleep((ts+0.05)-time.time())
     
-    def new_tag(self, params) -> "Tag":
-        """
-        pass params for the properties of the tag. This will include
-        the connection type and extended properties for that type
-        return the Tag() 
-        """
-        params['connection_id'] = self.id
-        try:
-            self.tags[params["id"]] = TAG_TYPES[self.connection_type](params)
-            return self.tags[params["id"]]
-        except KeyError as e:
-            raise PropertyError(f'Error creating tag, unknown type: {e}')
         
 
-    def save_to_db(self, session: "db_session") -> str:
-        entry = session.query(self.base_orm).filter(self.base_orm.id == self.id).first()
-        if entry == None:
-            entry = self.base_orm()
-        entry.id = self.id
-        entry.connection_type = self.connection_type
-        entry.description = self.description
-        session.add(entry)
-        session.commit()
-        if not self._id == entry.id:
-            self._id = entry.id # if db created this, the widget has a new id
-        return entry.id
 
 ########################New
     def delete_from_db(self,session: "db_session",conx_id):
