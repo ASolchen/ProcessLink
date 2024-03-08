@@ -257,7 +257,6 @@ class ProcessLink(APIClass):
             if tag_res.latest_only:
                 data_res = session.query(data_orm)\
                 .filter(data_orm.tagname == tagname)\
-                .filter(data_orm.timestamp > last_read)\
                 .order_by(desc(data_orm.timestamp))\
                 .limit(1)\
                     .all()
@@ -265,7 +264,8 @@ class ProcessLink(APIClass):
                 data_res = session.query(data_orm)\
                     .filter(data_orm.tagname == tagname)\
                     .filter(data_orm.timestamp > last_read)\
-                        .all()
+                    .order_by(desc(data_orm.timestamp))\
+                    .all()
             ##.filter(data_orm.timestamp > last_read)\
             tag_updates = []
             for t in data_res:
@@ -282,7 +282,12 @@ class ProcessLink(APIClass):
                 x = session.query(data_orm)\
                     .filter(data_orm.tagname == tagname)\
                     .filter(data_orm.timestamp <= purge_time)\
-                        .delete()
+                    .order_by(desc(data_orm.timestamp))\
+                    .all()
+                if tag_res.latest_only: #keep one around in case conx isn't polled be another request
+                    _ = [session.delete(res) for res in x[1:]]
+                else:
+                    _ = [session.delete(res) for res in x]
         session.commit()
         return updates
 
