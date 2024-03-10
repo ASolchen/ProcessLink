@@ -32,12 +32,10 @@ class LogixTag(Tag):
     @classmethod
     def add_to_db(cls, plink, params):
         Tag.add_to_db(plink, params)
-        query = {"query": lambda session: session.add(LogixTag.orm(id=params['id'],
+        plink.add_query(lambda session: session.add(LogixTag.orm(id=params['id'],
                                             connection_id=params.get('connection_id'),                       
                                             address=params.get('address', params['id'])
-                                            )), 
-                "cols": []}
-        plink.add_query(query)
+                                            )))
     
     def __init__(self, params: dict) -> None:
         super().__init__(params)
@@ -114,39 +112,43 @@ class LogixConnection(Connection):
     @classmethod
     def add_to_db(cls, plink, params):
         Connection.add_to_db(plink, params)
-        query = {"query": lambda session: session.add(LogixConnection.orm(id=params['id'],
+        plink.add_query(lambda session: session.add(LogixConnection.orm(id=params['id'],
                                                                     pollrate=params.get('pollrate', 0.5),
                                                                     auto_connect=params.get('auto_connect', False),
                                                                     host=params.get('host', '127.0.0.1'),
                                                                     port=params.get('port', 44818)
-                                                                    )), 
-                "cols": []}
-        plink.add_query(query)
+                                                                    )))
+
+    @classmethod
+    def get_def_from_db(cls, plink, id):
+        params = None        
+        query = lambda session: session.query(LogixConnection.orm).filter(LogixConnection.orm.id == id).limit(1).all()
+        res = plink.add_query(query, cols=['pollrate', 'auto_connect', 'host', 'port'])
+        if res:
+            params = res[0]
+        return params
+
+
 
     def __init__(self, manager: "ProcessLink", params: dict) -> None:
         super().__init__(manager, params)
         self.properties += ['pollrate', 'auto_connect', 'host', 'port']
         self._connection_type = "logix"
-        
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 44818
         self._host = params.get('host') or '127.0.0.1'
-        query = {"query": lambda session: session.add(self.orm(pollrate=self.pollrate, auto_connect=self.auto_connect, host=self.host, port=self.port)),
-                        "cols": []        
-            }
-        self.process_link.add_query(query)
+        
+    
+
 
 
     def poll(self, *args):
         with LogixDriver(self.host) as plc:
             while(self.polling):
                 ts = time.time()
-                while(self.thread_lock):
-                    time.sleep(0.001)
-                self.thread_lock = True
-                sub_tags= {}
-                for tag in self.polled_tags:
+                sub_tags = self.process_link.get_sub_tags(self.id)
+                for tag in self.tags:
                     sub_tags[tag] = self.tags.get(self.process_link.parse_tagname(tag)[1]).address
                 updates = {}
                 plc_res = plc.read(*[addr for t, addr in sub_tags.items()])

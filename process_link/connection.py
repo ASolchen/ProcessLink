@@ -69,11 +69,21 @@ class Connection(APIClass):
     
     @classmethod
     def add_to_db(cls, plink, params):
-        query = {"query": lambda session: session.add(Connection.orm(id=params['id'],
+        plink.add_query(lambda session: session.add(Connection.orm(id=params['id'],
                                                                     connection_type=params['connection_type'],
-                                                                    description=params.get('description', ''))), 
-                "cols": []}
-        plink.add_query(query)
+                                                                    description=params.get('description', ''))))
+    
+    @classmethod
+    def get_def_from_db(cls, plink, id):
+        params = None        
+        query = lambda session: session.query(Connection.orm).filter(Connection.orm.id == id).limit(1).all()
+        res = plink.add_query(query, cols=['id', 'connection_type', 'description'])
+        if res:
+            params = res[0]
+            c_type = params.get('connection_type')
+            if c_type in plink.c_types and not c_type == "local": #get the extended params
+                params.update(plink.c_types[params.get('connection_type')].get_def_from_db(plink, id))
+        return params
 
 
     def __init__(self, process_link: "ProcessLink", params: dict) -> None:
@@ -90,83 +100,27 @@ class Connection(APIClass):
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
         self._description = params.get('description')
         self._tags = {}
-        self.base_orm = SubscriptionDb.models["connection-params-local"] # database object-relational-model
-        query = {"query": lambda session: session.add(self.base_orm(id=self.id, connection_type=self.connection_type, description=self.description)),
-                        "cols": []
-            }
-        self.process_link.add_query(query)
-        self.polled_tags = []
-        self.thread_lock = False #thread lock used within the connection so polled_tags cannot change during polling
-        self.poll_thread = threading.Thread(target=self.poll)
-        self.poll_thread.setDaemon(True)
-        self.polling = False
-
-
-    def set_polling(self, should_poll):
-        if should_poll and not self.polling:
-            self.poll_thread.start()
-        self.polling = should_poll
+        self.polling = True
+        self.poll_thread = threading.Thread(target=self.poll, daemon=True)
+        self.poll_thread.start()
+        
 
 
     def poll(self, *args):
         while(self.polling):
             ts = time.time()
-            updates = {}
-            while(self.thread_lock):
-                time.sleep(0.001)
-            self.thread_lock = True
-            for tag in self.polled_tags:
-                if not tag in updates:
-                    updates[tag] = []
-                updates[tag].append((3.14159, ts))
-            self.process_link.update_handler.store_updates(updates)
-            self.thread_lock = False
-            time.sleep((ts+0.05)-time.time())
+            #does nothing on base for now
+            #maybe add local tags to read and write to / from
+            time.sleep((ts+0.5)-time.time())
     
-        
-
-
-########################New
-    def delete_from_db(self,session: "db_session",conx_id):
-        if conx_id != None:
-            session.query(self.base_orm).filter(self.base_orm.id == conx_id).delete()
-            session.commit()
-########################New
-
-    def load_tags_from_db(self, session):
-        orm = ConnectionDb.models['tag-params-local']
-        tags = session.query(orm).filter(orm.connection_id == self.id).all()
-        for tag in tags:
-            params = TAG_TYPES[self.connection_type].get_params_from_db(session, tag.id, self.id)
-            self.new_tag(params)
-
-########################New 
     def return_tag_parameters(self,*args):
         #default for local connection
         return ['id', 'connection_id', 'description','datatype','tag_type']
-########################New 
 
-    def aquire_lock(self) -> None:
-        """
-        used for safely updating and using data from multiple threads
-        """
-        while(self.thread_lock):
-            time.sleep(0.001)
-        self.thread_lock = True
 
-    def update_polled_tags(self, sub_tags: list) -> None:
-        self.aquire_lock()
-        for tag in sub_tags:
-            if tag not in self.polled_tags:
-                self.polled_tags.append(tag)
-        hitlist = []
-        for i, tag in enumerate(self.polled_tags):
-            if not tag in sub_tags:
-                hitlist.append(i)
-        for i in range(len(hitlist)-1, -1, -1): # iter in reverse so popping doesn't change index of the remaining tags
-            self.polled_tags.pop(i)
-        self.set_polling(bool(len(self.polled_tags)))
-        self.thread_lock = False
+
+
+
 
 
 

@@ -74,32 +74,25 @@ class Tag(APIClass):
 
     @classmethod
     def add_to_db(cls, plink, params):
-        query = {"query": lambda session: session.add(Tag.orm(id=params['id'],
+        plink.add_query(lambda session: session.add(Tag.orm(id=params['id'],
                                             connection_id=params['connection_id'],
                                             description=params.get('description', ''),
                                             datatype=params.get('datatype', ''),
                                             tag_type=params.get('tag_type', ''),
                                             value=params.get('value', ''),
-                                            )), 
-                "cols": []}
-        plink.add_query(query)
+                                            )))
 
 
     @classmethod
-    def get_params_from_db(cls, session, id: str, connection_id:str):
-        params = None
-        orm = SubscriptionDb.models["tag-params-local"]
-        tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
-        if tag:
-            params = {
-                'id': tag.id,
-                'connection_id': tag.connection_id,
-                'description': tag.description,
-                #####################corrected next three lines###########################################################################################################
-                'datatype': tag.datatype,
-                'tag_type':tag.tag_type,
-                'value': tag.value,
-            }
+    def get_def_from_db(cls, plink, id):
+        params = None        
+        query = lambda session: session.query(Tag.orm).filter(Tag.orm.id == id).limit(1).all()
+        res = plink.add_query(query, cols=['id', 'connection_id', 'description', 'datatype', 'tag_type'])
+        if res:
+            params = res[0]
+            c_type = params.get('connection_type')
+            if c_type in plink.c_types and not c_type == "local": #get the extended params
+                params.update(plink.c_types[params.get('connection_type')].get_def_from_db(plink, id))
         return params
 
     def __repr__(self) -> str:

@@ -131,7 +131,8 @@ class SubscriptionTable(DeclarativeBase): # this table holds all tag values bein
     __tablename__ = 'subscriptions'
     id = Column(Integer, primary_key=True)
     sub_id = Column(String, nullable=False)
-    tagname = Column(String, nullable=False)
+    connection = Column(String, nullable=False)
+    tag = Column(String, nullable=False)
     last_read = Column(Float, default=0.0)
     latest_only = Column(Boolean) #if True, latest value overwrites else all are buffered between updates
 
@@ -169,11 +170,10 @@ class SubscriptionDb(object):
 
 
 
-    def run_query(self, query):
+    def run_query(self, query, cols):
         
-        res =  query["query"](self.session)
+        res =  query(self.session)
         self.session.commit()
-        cols = query["cols"]
         #if no columns, the query doesn't need to return rows, e.g. deletes or updates
         if res and len(cols):
             new_res = []

@@ -49,6 +49,10 @@ TAG_TYPES['modbusTCP'] =  ModbusTcpTag
 
 
 class ProcessLink(APIClass):
+    c_types = CONNECTION_TYPES
+    t_types = TAG_TYPES
+    sub_table_orm = SubscriptionTable
+    data_table_orm = DataTable
 
     def __repr__(self) -> str:
         return "<class> ProcessLink"
@@ -61,6 +65,9 @@ class ProcessLink(APIClass):
         # Start query thread
         self.query_thread = threading.Thread(target=self._query_thread, daemon=True)
         self.query_thread.start()
+        self.connection_thread = threading.Thread(target=self._connection_thread, daemon=True)
+        self.connection_thread.start()
+        self._connections = {} # dict for holding connection objects
         
 
     @property
@@ -88,11 +95,10 @@ class ProcessLink(APIClass):
         while True:
             query_info, result_queue, query_ready_event = self.query_queue.get()
             query = query_info['query']
-            args = query_info['args']
-            kwargs = query_info['kwargs']
+            cols = query_info['cols']
 
             # Execute the query within the session
-            result = self.db.run_query(query)
+            result = self.db.run_query(query, cols)
 
             # Put the result into the result queue
             result_queue.put(result)
@@ -100,7 +106,7 @@ class ProcessLink(APIClass):
             # Set the event to indicate that the query has been executed
             query_ready_event.set()
 
-    def add_query(self, query, *args, **kwargs):
+    def add_query(self, query, cols=[]):
         thread_id = threading.current_thread().ident  # Generate thread ID
         result_queue = queue.Queue()
         query_ready_event = threading.Event()
@@ -111,8 +117,7 @@ class ProcessLink(APIClass):
         # Add the query information and related queue/event to the main queue
         query_info = {
             'query': query,
-            'args': args,
-            'kwargs': kwargs
+            'cols': cols
         }
         self.query_queue.put((query_info, result_queue, query_ready_event))
 
@@ -148,6 +153,36 @@ class ProcessLink(APIClass):
         #          }
         # self.add_query(query)
 
+    def _connection_thread(self):
+        """
+        _connection_thread() handles starting and stopping connections and cleaning up DataTable records that are not needed
+        :return: None
+        """ 
+        LOOP_TM = 2.0 
+        while(1):
+            ts = time.time()
+            #check for subs on connections we don't have open
+            res = self.add_query(lambda session: session.query(SubscriptionTable.connection).distinct().all())
+            sub_conx = []
+            if res:
+                sub_conx = [s[0] for s in res]
+            # if needed, create a new connection from the db definintion
+            for connection_id in sub_conx:
+                if not connection_id in self._connections:
+                    params = Connection.get_def_from_db(self, connection_id)
+                    if params:
+                        self._connections[connection_id] = self.c_types[params['connection_type']](self, params)
+                    else:
+                        UnknownConnectionError(connection_id)
+            #clean up old tags
+            #check for stale connections, close down and delete if not needed
+
+            time.sleep(max(0, (ts+LOOP_TM)-time.time()))
+
+
+
+
+
     def new_connection(self, params):
         """
         pass params for the properties of the connection. This will include
@@ -160,7 +195,7 @@ class ProcessLink(APIClass):
         except KeyError as e:
             raise PropertyError(f'Error creating connection, missing parameter: {e}')
         try:
-            CONNECTION_TYPES[params['connection_type']].add_to_db(self, params)
+            self.c_types[params['connection_type']].add_to_db(self, params)
         except KeyError as e:
             raise PropertyError(f'Error creating connection, unknown type: {e}')
     
@@ -185,10 +220,25 @@ class ProcessLink(APIClass):
         sends the updates back when requested later using get_tag_updates() e.g.
         {"[MyConn]MyTag}": {"value": 3.14, "timestamp": 16000203.7}, }.
         """ 
-        query = {"query": lambda session: session.add(SubscriptionTable(sub_id=sub_id, tagname=tagname, latest_only=latest_only)),
-            "cols": []
-            }
+        connection, tag = self.parse_tagname(tagname)
+        query = lambda session: session.add(SubscriptionTable(sub_id=sub_id,
+                                                              connection=connection,
+                                                              tag=tagname,
+                                                              latest_only=latest_only))
         self.add_query(query)
+
+    def get_sub_tags(self, connection):
+        """
+        get_sub_tags() returns all distinct tag definitions for the connection to poll
+        """
+        tags = {}
+        res = self.add_query(lambda session: session.query(SubscriptionTable.connection,
+                                                     SubscriptionTable.tag)\
+                        .filter(SubscriptionTable.connection == connection).all(),
+                        cols=['connection', 'tag'])
+        # need to query tag definitions for connections
+        return res
+
 
     def load_db(self) -> bool:
         """
@@ -203,7 +253,7 @@ class ProcessLink(APIClass):
         orm = ConnectionDb.models["connection-params-local"]
         conns = session.query(orm).all()
         for conn in conns:
-            params = CONNECTION_TYPES[conn.connection_type].get_params_from_db(session, conn.id)
+            params = self.c_types[conn.connection_type].get_params_from_db(session, conn.id)
             conn_obj = self.new_connection(params)
             conn_obj.load_tags_from_db(session)
         return True
@@ -260,22 +310,17 @@ class ProcessLink(APIClass):
         """
         ts = time.time()
         #get all unique tags in the sub
-        query = {"query": lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
-,
-                    "cols": ['tagname', 'latest_only', 'last_read']
-                    }
-        res = self.add_query(query)
+        query = lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
+        res = self.add_query(query, cols=['connection', 'tag', 'latest_only', 'last_read'])
         latest_only = True
-        tagrows = [(tag['tagname'], tag['latest_only'], tag['last_read']) for tag in res]
+        tagrows = [(f"[{tag['connection']}]{tag['tag']}", tag['latest_only'], tag['last_read']) for tag in res]
         updates = {}
         print(len(tagrows))
         for tagrow in tagrows:
             tag, latest_only, last_read = tagrow
             if latest_only:
-                query = {"query": lambda session: session.query(DataTable).filter(DataTable.tagname == tag).order_by(desc(DataTable.timestamp)).limit(1).all(),
-                        "cols": ['id', 'tagname', 'value', 'timestamp']
-                        }
-                res = self.add_query(query)
+                query =lambda session: session.query(DataTable).filter(DataTable.tagname == tag).order_by(desc(DataTable.timestamp)).limit(1).all()
+                res = self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
                 #clean out all but last row (do this in clean up)
                 # if res:
                 #     row = res[0]
@@ -284,13 +329,10 @@ class ProcessLink(APIClass):
                 #     self.add_query({"query": lambda session: session.query(DataTable).filter(and_(DataTable.tagname == tag, DataTable.id != row_id)).delete(),
                 #                     "cols": []})
             else:
-                query = {"query": lambda session: session.query(DataTable).filter(DataTable.tagname == tag, DataTable.timestamp > last_read).all(),
-                        "cols": ['id', 'tagname', 'value', 'timestamp']
-                        }
-                updates[tag]=self.add_query(query)
+                query = lambda session: session.query(DataTable).filter(DataTable.tagname == tag, DataTable.timestamp > last_read).all()
+                updates[tag]=self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
                 #update last_read for buffered tags on sub
-                self.add_query({"query": lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).update({"last_read": ts}, synchronize_session=False),
-                                "cols": []})
+                self.add_query(lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).update({"last_read": ts}, synchronize_session=False))
         return updates
 
     def store_update(self, tag, value, timestamp=time.time()):
@@ -302,10 +344,7 @@ class ProcessLink(APIClass):
         :param timestamp: timestamp of the tag value
         :return: describe what it returns 
         """ 
-        query = {"query": lambda session: session.add(DataTable(tagname=tag, value=value, timestamp=timestamp)),
-                "cols": []
-                }
-        self.add_query(query)
+        self.add_query(lambda session: session.add(DataTable(tagname=tag, value=value, timestamp=timestamp)))
         
 
             
