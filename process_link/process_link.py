@@ -25,7 +25,7 @@ import threading
 import queue
 from typing import Any, Optional, Callable
 import os, time
-from sqlalchemy import desc
+from sqlalchemy import desc, and_
 ####################Different
 from pycomm3 import tag
 #####################
@@ -59,7 +59,7 @@ class ProcessLink(APIClass):
         self.query_queue = queue.Queue()
         self.result_queues = {}  # Dictionary to store result queues for each thread
         # Start query thread
-        self.query_thread = threading.Thread(target=self._query_thread)
+        self.query_thread = threading.Thread(target=self._query_thread, daemon=True)
         self.query_thread.start()
         
 
@@ -138,14 +138,15 @@ class ProcessLink(APIClass):
         #     }
         #     self.add_query(query)
         t = time.time()
-        query = {"query": lambda session: session.add(DataTable(tagname="[HousePLC]TankLevel", value=str(t), timestamp=t)),
-                 "cols": []
-                 }
-        self.add_query(query)
-        query = {"query": lambda session: session.add(DataTable(tagname="[Random]Crap", value=str(t), timestamp=t)),
-                 "cols": []
-                 }
-        self.add_query(query)
+        self.store_update("[HousePLC]TankLevel", t % 100, t)
+        self.store_update("[HousePLC]TankLevel", t % 50, t)
+        self.store_update("[HousePLC]TankLevel", t % 67, t)
+        self.store_update("[HousePLC]TankLevel", t % 10 * 0.5, t)
+        self.store_update("[Random]Crap", t % 10, t)
+        # query = {"query": lambda session: session.add(DataTable(tagname="[Random]Crap", value=str(t), timestamp=t)),
+        #          "cols": []
+        #          }
+        # self.add_query(query)
 
     def new_connection(self, params):
         """
@@ -165,10 +166,10 @@ class ProcessLink(APIClass):
     
     def new_tag(self, params):
         """
-        pass params for the properties of the tag. This will include
+        new_tag adds a tag definition using the params for the properties of the tag. This will include
         the connection type and extended properties for that type
         The tag definition is put in the database, and used by its
-         Connection class when needed 
+        Connection class when needed 
         """
         try:
             TAG_TYPES[params.get('tag_type')].add_to_db(self, params)
@@ -188,26 +189,6 @@ class ProcessLink(APIClass):
             "cols": []
             }
         self.add_query(query)
-        # conn = self.connections.get(conn_name)
-        # try:
-        #     conn = self.connections[conn_name]
-        # except KeyError as e:
-        #     raise UnknownConnectionError(f"Error finding connection '{conn_name}' while subscribing to {tagname}")
-        # sub = session.query(orm)\
-        #     .filter(orm.sub_id == id)\
-        #     .filter(orm.tagname == tagname)\
-        #         .first()
-        # if sub == None: #this is a new one
-        #     sub = self.sub_db.sub_orm()
-        #     sub.sub_id = id
-        #     sub.tagname = tagname
-        #     sub.latest_only = latest_only
-        #     self.sub_db.session.add(sub)
-        #     self.sub_db.session.commit()
-        #     taglist = []
-        #     res = session.query(orm).filter(orm.tagname.like(f"%[{conn_name}]%")).distinct(orm.tagname).all()
-        #     taglist = [t.tagname for t in res]
-        #     conn.update_polled_tags(taglist)
 
     def load_db(self) -> bool:
         """
@@ -277,36 +258,54 @@ class ProcessLink(APIClass):
         table and grouped into subcription ids. The last
         callback is sent the update for those tags
         """
+        ts = time.time()
         #get all unique tags in the sub
-        query = {"query": lambda session: session.query(SubscriptionTable.tagname).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
+        query = {"query": lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
 ,
-                    "cols": ['tagname']
+                    "cols": ['tagname', 'latest_only', 'last_read']
                     }
-        tags = [tag['tagname'] for tag in self.add_query(query)]
+        res = self.add_query(query)
+        latest_only = True
+        tagrows = [(tag['tagname'], tag['latest_only'], tag['last_read']) for tag in res]
         updates = {}
-        for tag in tags:
-            query = {"query": lambda session: session.query(DataTable).filter(DataTable.tagname == tag).all(),
-                    "cols": ['id', 'tagname', 'value', 'timestamp']
-                    }
-            updates[tag]=self.add_query(query)
+        print(len(tagrows))
+        for tagrow in tagrows:
+            tag, latest_only, last_read = tagrow
+            if latest_only:
+                query = {"query": lambda session: session.query(DataTable).filter(DataTable.tagname == tag).order_by(desc(DataTable.timestamp)).limit(1).all(),
+                        "cols": ['id', 'tagname', 'value', 'timestamp']
+                        }
+                res = self.add_query(query)
+                #clean out all but last row (do this in clean up)
+                # if res:
+                #     row = res[0]
+                #     row_id = row.pop('id')
+                #     updates[tag]=row
+                #     self.add_query({"query": lambda session: session.query(DataTable).filter(and_(DataTable.tagname == tag, DataTable.id != row_id)).delete(),
+                #                     "cols": []})
+            else:
+                query = {"query": lambda session: session.query(DataTable).filter(DataTable.tagname == tag, DataTable.timestamp > last_read).all(),
+                        "cols": ['id', 'tagname', 'value', 'timestamp']
+                        }
+                updates[tag]=self.add_query(query)
+                #update last_read for buffered tags on sub
+                self.add_query({"query": lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).update({"last_read": ts}, synchronize_session=False),
+                                "cols": []})
         return updates
 
-    def store_updates(self, updates):
+    def store_update(self, tag, value, timestamp=time.time()):
         """
-        {'[Fred0]Tag1': [(3.14159, 1643567723.9851432), (3.14159, 1643567724.4859304)]}
-        """
-        session = self.sub_db.session
-        sub_orm = self.sub_db.sub_orm
-        data_orm = self.sub_db.data_orm
-        for tagname, tag_read in updates.items():
-            for value, timestamp in tag_read:
-                session.add(data_orm(
-                    tagname=tagname,
-                    value=value,
-                    timestamp=timestamp
-                        )
-                    )
-        session.commit()
+        store_update takes a singe tag value update and puts it in the DataTable of the database
+
+        :param tag: tagname in the [connection]tag format
+        :param value: value of the tag update
+        :param timestamp: timestamp of the tag value
+        :return: describe what it returns 
+        """ 
+        query = {"query": lambda session: session.add(DataTable(tagname=tag, value=value, timestamp=timestamp)),
+                "cols": []
+                }
+        self.add_query(query)
         
 
             

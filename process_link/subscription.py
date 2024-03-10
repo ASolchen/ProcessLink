@@ -173,8 +173,9 @@ class SubscriptionDb(object):
         
         res =  query["query"](self.session)
         self.session.commit()
-        if res:
-            cols = query["cols"]
+        cols = query["cols"]
+        #if no columns, the query doesn't need to return rows, e.g. deletes or updates
+        if res and len(cols):
             new_res = []
             for r in res:
                 row_dict = {}
