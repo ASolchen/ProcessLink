@@ -223,21 +223,10 @@ class ProcessLink(APIClass):
         connection, tag = self.parse_tagname(tagname)
         query = lambda session: session.add(SubscriptionTable(sub_id=sub_id,
                                                               connection=connection,
-                                                              tag=tagname,
+                                                              tag=tag,
                                                               latest_only=latest_only))
         self.add_query(query)
 
-    def get_sub_tags(self, connection):
-        """
-        get_sub_tags() returns all distinct tag definitions for the connection to poll
-        """
-        tags = {}
-        res = self.add_query(lambda session: session.query(SubscriptionTable.connection,
-                                                     SubscriptionTable.tag)\
-                        .filter(SubscriptionTable.connection == connection).all(),
-                        cols=['connection', 'tag'])
-        # need to query tag definitions for connections
-        return res
 
 
     def load_db(self) -> bool:
@@ -312,7 +301,6 @@ class ProcessLink(APIClass):
         #get all unique tags in the sub
         query = lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
         res = self.add_query(query, cols=['connection', 'tag', 'latest_only', 'last_read'])
-        latest_only = True
         tagrows = [(f"[{tag['connection']}]{tag['tag']}", tag['latest_only'], tag['last_read']) for tag in res]
         updates = {}
         print(len(tagrows))

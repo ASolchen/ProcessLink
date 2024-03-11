@@ -28,7 +28,8 @@ import re
 from typing import Any, Optional
 from .api import APIClass, PropertyError
 from .tag import Tag
-from .subscription import SubscriptionDb, ConnectionTable
+from .subscription import SubscriptionDb, SubscriptionTable, DataTable
+
 
 __all__ = ["Connection", "TAG_TYPES", "UnknownConnectionError"]
 
@@ -44,6 +45,7 @@ class Connection(APIClass):
     The base connection class
     """
     orm = SubscriptionDb.models["connection-params-local"] # database object-relational-model
+    tag_orm = SubscriptionDb.models['tag-params-local']
 
     def __repr__(self) -> str:
         return f"Connection: {self.id}"
@@ -100,6 +102,8 @@ class Connection(APIClass):
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
         self._description = params.get('description')
         self._tags = {}
+        self.tag_properties = ['id', 'connection_id', 'tag_type', 'description',
+                               'datatype', 'value']
         self.polling = True
         self.poll_thread = threading.Thread(target=self.poll, daemon=True)
         self.poll_thread.start()
@@ -118,7 +122,29 @@ class Connection(APIClass):
         return ['id', 'connection_id', 'description','datatype','tag_type']
 
 
+    def get_sub_tags(self, param_list):
+        """
+        get_sub_tags() returns all distinct tag definitions for the connection to poll
+        """
+        sub_tags = {}
+        res = self.process_link.add_query(lambda session: \
+            session.query(SubscriptionTable.connection,
+            SubscriptionTable.tag)\
+            .filter(SubscriptionTable.connection == self._id).all(),
+            cols=['connection', 'tag'])
+        # need to query tag definitions for connections
+        if res:
+            tags = [t['tag']for t in res]
+            for tag in tags:
+                sub_tags[tag] = {}
+                tag_res = self.process_link.add_query(lambda session: \
+                    session.query(DataTable)\
+                    .filter(DataTable.tagname == tag).all(),
+                    cols=self.tag_properties)
+                if tag_res:
+                    sub_tags[tag].update(tag_res[0])
 
+        return sub_tags
 
 
 
