@@ -99,14 +99,14 @@ class Connection(APIClass):
             raise PropertyError(f"Missing expected property {e}")
         self._id = params.get('id')
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
-        self._description = params.get('description')
+        self._description = '' if 'description' not in params else params.get('description')
         self._tags = {}
         self.tag_properties = ['id', 'connection_id', 'tag_type', 'description',
                                'datatype', 'value']
         self.polling = True
         self.poll_thread = threading.Thread(target=self.poll, daemon=True)
         self.poll_thread.start()
-        
+
 
 
     def poll(self, *args):
