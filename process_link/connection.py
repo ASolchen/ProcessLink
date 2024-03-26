@@ -22,7 +22,6 @@
 # SOFTWARE.
 #
 
-from imp import acquire_lock
 import threading, time
 import re
 from typing import Any, Optional

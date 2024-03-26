@@ -25,7 +25,7 @@ import threading
 import queue
 from typing import Any, Optional, Callable
 import os, time
-from sqlalchemy import desc, and_
+from sqlalchemy import asc, desc, and_
 ####################Different
 from pycomm3 import tag
 #####################
@@ -36,7 +36,7 @@ from .tag import Tag
 from .database import ConnectionDb, DatabaseError
 from .subscription import SubscriptionTable, DataTable
 
-from .subscription import SubscriptionDb, UpdateHandler
+from .subscription import SubscriptionDb
 __all__ = ["ProcessLink"]
 
 CONNECTION_TYPES = {'local': Connection}
@@ -158,7 +158,7 @@ class ProcessLink(APIClass):
         _connection_thread() handles starting and stopping connections and cleaning up DataTable records that are not needed
         :return: None
         """ 
-        LOOP_TM = 2.0 
+        LOOP_TM = 0.2 
         while(1):
             ts = time.time()
             #check for subs on connections we don't have open
@@ -297,7 +297,7 @@ class ProcessLink(APIClass):
         table and grouped into subcription ids. The last
         callback is sent the update for those tags
         """
-        ts = time.time()
+        ts = time.time() #use for subscription last_read
         #get all unique tags in the sub
         query = lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).distinct().all()
         res = self.add_query(query, cols=['connection', 'tag', 'latest_only', 'last_read'])
@@ -317,10 +317,18 @@ class ProcessLink(APIClass):
                 #     self.add_query({"query": lambda session: session.query(DataTable).filter(and_(DataTable.tagname == tag, DataTable.id != row_id)).delete(),
                 #                     "cols": []})
             else:
-                query = lambda session: session.query(DataTable).filter(DataTable.tagname == tag, DataTable.timestamp > last_read).all()
+                query = lambda session: session.query(DataTable)\
+                    .filter(DataTable.tagname == tag, DataTable.timestamp > last_read)\
+                    .order_by(asc(DataTable.timestamp))\
+                    .all()
                 updates[tag]=self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
-                #update last_read for buffered tags on sub
-                self.add_query(lambda session: session.query(SubscriptionTable).filter(SubscriptionTable.sub_id == sub_id).update({"last_read": ts}, synchronize_session=False))
+                if len(updates[tag]):
+                    tag_only = self.parse_tagname(tag)[1] #tags are stored without [connection] in the sub table
+                    #update last_read for buffered tags on sub
+                    self.add_query(lambda session: session.query(SubscriptionTable)\
+                                   .filter(SubscriptionTable.sub_id == sub_id)\
+                                   .filter(SubscriptionTable.tag == tag_only)\
+                                    .update({"last_read": ts}, synchronize_session=False))
         return updates
 
     def store_update(self, tag, value, timestamp=time.time()):
