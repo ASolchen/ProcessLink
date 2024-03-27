@@ -1,6 +1,6 @@
 import time, struct
 from pymodbus.client import ModbusTcpClient
-from ..database import ConnectionDb
+from ..subscription import SubscriptionDb
 from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
@@ -24,7 +24,7 @@ class ModbusTcpTag(Tag):
     @classmethod
     def get_params_from_db(cls, session, id: str, connection_id: str):
         params = super().get_params_from_db(session, id, connection_id)
-        orm = ConnectionDb.models["tag-params-modbus"]
+        orm = SubscriptionDb.models["tag-params-modbus"]
         tag = session.query(orm).filter(orm.id == id).filter(orm.connection_id == connection_id).first()
         if tag:
             params.update({
@@ -36,7 +36,7 @@ class ModbusTcpTag(Tag):
         super().__init__(params)
         self.properties += ['address']
         self._tag_type = "modbus"
-        self.orm = ConnectionDb.models['tag-params-modbus']
+        self.orm = SubscriptionDb.models['tag-params-modbus']
         self._datatype = params.get('datatype') or 'REAL'
         try:
             self._address = params['address']
@@ -88,7 +88,7 @@ class ModbusTCPConnection(Connection):
     @classmethod
     def get_params_from_db(cls, session, id: str):
         params = super().get_params_from_db(session, id)
-        orm = ConnectionDb.models["connection-params-modbusTCP"]
+        orm = SubscriptionDb.models["connection-params-modbusTCP"]
         conn = session.query(orm).filter(orm.id == id).first()
         if conn:
             params.update({
@@ -103,7 +103,7 @@ class ModbusTCPConnection(Connection):
         super().__init__(manager, params)
         self.properties += ['pollrate', 'auto_connect', 'host', 'port']
         self._connection_type = "modbusTCP"
-        self.orm = ConnectionDb.models["connection-params-modbusTCP"]
+        self.orm = SubscriptionDb.models["connection-params-modbusTCP"]
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 502

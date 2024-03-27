@@ -63,10 +63,6 @@ class Connection(APIClass):
     @description.setter
     def description(self, value: str) -> None:
         self._description = value
-
-    @property
-    def tags(self):
-        return self._tags
     
     @classmethod
     def add_to_db(cls, plink, params):
@@ -86,7 +82,6 @@ class Connection(APIClass):
                 params.update(plink.c_types[params.get('connection_type')].get_def_from_db(plink, id))
         return params
 
-
     def __init__(self, process_link: "ProcessLink", params: dict) -> None:
         super().__init__()
         self.process_link = process_link
@@ -100,14 +95,11 @@ class Connection(APIClass):
         self._id = params.get('id')
         self._connection_type = "local" #base connection. Override this on exetended class' init to the correct type
         self._description = '' if 'description' not in params else params.get('description')
-        self._tags = {}
         self.tag_properties = ['id', 'connection_id', 'tag_type', 'description',
                                'datatype', 'value']
         self.polling = True
         self.poll_thread = threading.Thread(target=self.poll, daemon=True)
         self.poll_thread.start()
-
-
 
     def poll(self, *args):
         while(self.polling):
@@ -119,7 +111,6 @@ class Connection(APIClass):
     def return_tag_parameters(self,*args):
         #default for local connection
         return ['id', 'connection_id', 'description','datatype','tag_type']
-
 
     def get_sub_tags(self, param_list):
         """
