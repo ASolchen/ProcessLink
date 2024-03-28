@@ -43,9 +43,9 @@ CONNECTION_TYPES = {'local': Connection}
 from .connections.logix import LogixConnection, LogixTag
 CONNECTION_TYPES['logix'] =  LogixConnection
 TAG_TYPES['logix'] =  LogixTag
-from .connections.modbus_tcp import ModbusTcpTag, ModbusTCPConnection
+from .connections.modbus_tcp import ModbusTag, ModbusTCPConnection
 CONNECTION_TYPES['modbusTCP'] =  ModbusTCPConnection
-TAG_TYPES['modbusTCP'] =  ModbusTcpTag
+TAG_TYPES['modbusTCP'] =  ModbusTag
 
 
 class ProcessLink(APIClass):

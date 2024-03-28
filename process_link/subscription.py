@@ -101,6 +101,7 @@ class TagParamsModbus(DeclarativeBase):
     __table_args__ = (ForeignKeyConstraint([id, connection_id],
                                            [TagTable.id, TagTable.connection_id], ondelete='CASCADE'),
                       {})
+    func = Column(Integer, nullable=False) #see FuncTable codes in modbus_tcp.py
     address = Column(Integer, nullable=False)
     bit = Column(Integer, default=0)
     word_swapped = Column(Boolean, default=False)

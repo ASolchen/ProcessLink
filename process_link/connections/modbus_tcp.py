@@ -5,22 +5,15 @@ from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
 
-class ModbusTcpTag(Tag):
-    ####################################New
-    @property
-    def address(self) -> int:
-        return self._address
-    @address.setter
-    def address(self, value: int) -> None:
-        self._address = value
-    @property
-    def datatype(self) -> str:
-        return self._address
-    @datatype.setter
-    def datatype(self, value: str) -> None:
-        self._datatype = value
-    ####################################New
+class FuncTable(): #from mb function read codes, used in tag db
+    COILS = 1
+    DISCRETES = 2
+    HOLDING_REGS = 3
+    STAT_REGS = 4
 
+
+class ModbusTag(Tag):
+    orm = SubscriptionDb.models['tag-params-modbus']
     @classmethod
     def get_params_from_db(cls, session, id: str, connection_id: str):
         params = super().get_params_from_db(session, id, connection_id)
@@ -32,31 +25,11 @@ class ModbusTcpTag(Tag):
             })
         return params
     
-    def __init__(self, params: dict) -> None:
-        super().__init__(params)
-        self.properties += ['address']
-        self._tag_type = "modbus"
-        self.orm = SubscriptionDb.models['tag-params-modbus']
-        self._datatype = params.get('datatype') or 'REAL'
-        try:
-            self._address = params['address']
-        except KeyError as e:
-            raise PropertyError(f"Missing expected property {e}")
-    
-    def save_to_db(self, session: "db_session") -> int:
-        id = super().save_to_db(session)
-        entry = session.query(self.orm).filter(self.orm.id == id).filter(self.orm.connection_id == self.connection_id).first()
-        if entry == None:
-            entry = self.orm()
-        entry.id = self.id
-        entry.address = self.address
-        entry.connection_id = self.connection_id
-        session.add(entry)
-        session.commit()
-        return entry.id
-        
 
 class ModbusTCPConnection(Connection):
+    orm = SubscriptionDb.models['connection-params-modbusTCP']
+    tag_orm = ModbusTag
+
     @property
     def pollrate(self) -> float:
         return self._pollrate
@@ -88,7 +61,7 @@ class ModbusTCPConnection(Connection):
     @classmethod
     def get_params_from_db(cls, session, id: str):
         params = super().get_params_from_db(session, id)
-        orm = SubscriptionDb.models["connection-params-modbusTCP"]
+        orm = cls.orm
         conn = session.query(orm).filter(orm.id == id).first()
         if conn:
             params.update({
@@ -99,59 +72,49 @@ class ModbusTCPConnection(Connection):
             })
         return params
 
+    @classmethod
+    def return_tag_parameters(cls, *args):
+        return ['id', 'connection_id', 'description','func','bit','address',
+                'word_swapped', 'byte_swapped']
+
+    @classmethod
+    #adds definition to the database and is used later to instanciate
+    def add_to_db(cls, plink, params):
+        Connection.add_to_db(plink, params)
+        plink.add_query(lambda session: session.add(cls.orm(id=params['id'],
+                        pollrate=params.get('pollrate', 0.5),
+                        auto_connect=params.get('auto_connect', False),
+                        host=params.get('host', '127.0.0.1'),
+                        port=params.get('port', 502),
+                        station_id=params.get('station_id', 1),
+                        )))
+        
+    @classmethod
+    def get_def_from_db(cls, plink, id):
+        params = None        
+        query = lambda session: session.query(cls.orm).filter(cls.orm.id == id).limit(1).all()
+        res = plink.add_query(query, cols=['pollrate', 'auto_connect', 'host', 'port', 'station_id'])
+        if res:
+            params = res[0]
+        return params
+
     def __init__(self, manager: "ProcessLink", params: dict) -> None:
         super().__init__(manager, params)
-        self.properties += ['pollrate', 'auto_connect', 'host', 'port']
+        self.properties += ['pollrate', 'auto_connect', 'host', 'port', 'station_id']
         self._connection_type = "modbusTCP"
-        self.orm = SubscriptionDb.models["connection-params-modbusTCP"]
         self._pollrate = params.get('pollrate') or 1.0
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 502
         self._host = params.get('host') or '127.0.0.1'
-
-    def save_to_db(self, session: "db_session") -> str:
-        id = super().save_to_db(session)
-        entry = session.query(self.orm).filter(self.orm.id == id).first()
-        if entry == None:
-            entry = self.orm()
-        entry.id = self.id
-        entry.pollrate = self.pollrate
-        entry.auto_connect = self.auto_connect
-        entry.host = self.host
-        entry.port = self.port
-        session.add(entry)
-        session.commit()
-        return entry.id
-
-    def return_tag_parameters(self,*args):
-        return ['id', 'connection_id', 'description','datatype','tag_type','address']
+        self._host = params.get('station_id') or '1'
 
     def poll(self, *args):
         with ModbusTcpClient(self.host) as plc:
             while(self.polling):
                 ts = time.time()
-                while(self.thread_lock):
-                    time.sleep(0.001)
-                self.thread_lock = True
-                sub_tags= {}
-                reg_addresses = []
-                for full_tag in self.polled_tags:
-                    address = self.tags.get(self.process_link.parse_tagname(full_tag)[1]).address
-                    sub_tags[full_tag] = address
-                    reg_addresses.append(address)
-                reg_addresses = sorted(reg_addresses)
-                read_len = (reg_addresses[-1]+1) - reg_addresses[0] + 1
-                updates = {}
-                result = plc.read_holding_registers(reg_addresses[0],read_len)
-                
-                for full_tag in self.polled_tags:
-                    tag = self.tags.get(self.process_link.parse_tagname(full_tag)[1])
-                    addr = tag.address
-                    offset = tag.address - reg_addresses[0]
-                    val = struct.unpack('f', struct.pack("HH", *result.registers[offset:offset+2]))[0] # for float type
-                    updates[full_tag] = [(val,ts),]
-                self.process_link.update_handler.store_updates(updates)
-                self.thread_lock = False
+                updates = self.read_tags()
+                for idx, tag in enumerate(updates):
+                    pass#self.process_link.store_update(f"[{self._id}]{tag}", plc_res[idx].value, ts)
                 time.sleep(max(0, (ts+self.pollrate)-time.time()))
 
 
@@ -169,3 +132,23 @@ class ModbusTCPConnection(Connection):
         #          (3.14159, 1643503020.642834), 
         #           ],
         # }
+
+    def read_tags(self):
+        updates = self.read_coils() + \
+            self.read_discretes() + \
+            self.read_holding_regs() + \
+            self.read_input_regs()
+        return updates
+    
+    def read_coils(self):
+        updates = []
+        #get all of the tags that are in "coils", are in this connection, and are subcribed to
+        # need to join below with modbus_tag table where func = 1 for coils
+        # sub_tags = {} 
+        # res = self.process_link.add_query(lambda session: \
+        #    session.session.query(SubscriptionTable.connection, SubscriptionTable.tag)\
+        #   .join(TagParamsModbus, SubscriptionTable.tag == TagParamsModbus.id)\
+        #   .filter(SubscriptionTable.connection == self._id)\
+        #   .filter(TagParamsModbus.func == 1)\
+        #   .all(), cols=[self.return_tag_parameters()])
+        return updates
