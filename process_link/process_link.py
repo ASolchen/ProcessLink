@@ -36,7 +36,7 @@ from .tag import Tag
 from .database import DatabaseError
 from .subscription import SubscriptionTable, DataTable
 
-from .subscription import SubscriptionDb, ConnectionTable
+from .subscription import SubscriptionDb
 __all__ = ["ProcessLink"]
 
 CONNECTION_TYPES = {'local': Connection}
@@ -53,7 +53,6 @@ class ProcessLink(APIClass):
     t_types = TAG_TYPES
     sub_table_orm = SubscriptionTable
     data_table_orm = DataTable
-    connections_table = ConnectionTable
 
     def __repr__(self) -> str:
         return "<class> ProcessLink"
