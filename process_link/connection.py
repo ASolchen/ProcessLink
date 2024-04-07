@@ -27,6 +27,7 @@ import re
 from typing import Any, Optional
 from .api import APIClass, PropertyError
 from .tag import Tag
+from .data_types import DATA_TYPES
 from .subscription import SubscriptionDb, SubscriptionTable, DataTable
 
 
@@ -39,10 +40,12 @@ class UnknownConnectionError(Exception):
     raised when getting a connection that does not exist
     """
 
+
 class Connection(APIClass):
     """
     The base connection class
     """
+    data_types = DATA_TYPES
     orm = SubscriptionDb.models["connection-params-local"] # database object-relational-model
     tag_orm = SubscriptionDb.models['tag-params-local']
 
@@ -99,6 +102,7 @@ class Connection(APIClass):
                                'datatype', 'value']
         self.polling = True
         self.poll_thread = threading.Thread(target=self.poll, daemon=True)
+        self.update_tags_changed(True)
         self.poll_thread.start()
 
     def poll(self, *args):
@@ -136,7 +140,26 @@ class Connection(APIClass):
 
         return sub_tags
 
-
+    def update_tags_changed(self, state):
+        """
+        updated the Connection table flag that tags may have changed
+        """
+        self.process_link.add_query(lambda session: session.query(Connection.orm)\
+       .filter(Connection.orm.id == self._id)\
+       .update({"polled_tags_changed": state})
+        )
+    
+    def get_tags_changed(self):
+        """
+        get status of the Connection table flag that tags may have changed
+        """
+        res = self.process_link.add_query(lambda session: session.query(Connection.orm)\
+            .filter(Connection.orm.id == self._id), cols=['polled_tags_changed']
+        )
+        state = None
+        if len(res):
+            state = res[0]['polled_tags_changed']
+        return state
 
 
 

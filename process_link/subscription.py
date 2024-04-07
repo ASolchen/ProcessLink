@@ -18,6 +18,7 @@ class ConnectionTable(DeclarativeBase):
     id = Column(String, primary_key=True)
     connection_type = Column(String, nullable=False)
     description = Column(String)
+    polled_tags_changed = Column(Boolean)
 
 
 class ConnectionParamsModbusRTU(DeclarativeBase):
@@ -178,11 +179,15 @@ class SubscriptionDb(object):
         #if no columns, the query doesn't need to return rows, e.g. deletes or updates
         if res and len(cols):
             new_res = []
-            for r in res:
-                row_dict = {}
-                for col in cols:
-                    row_dict[col]=r.__getattribute__(col)
-                new_res.append(row_dict)
+            try:
+                iter(res) # if iterable, must be results
+                for r in res:
+                    row_dict = {}
+                    for col in cols:
+                        row_dict[col]=r.__getattribute__(col)
+                    new_res.append(row_dict)
+            except TypeError:
+                new_res = res # if not iterable, must be an instance of an orm Table
             res = new_res
         return res
     

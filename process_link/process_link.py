@@ -36,7 +36,7 @@ from .tag import Tag
 from .database import DatabaseError
 from .subscription import SubscriptionTable, DataTable
 
-from .subscription import SubscriptionDb
+from .subscription import SubscriptionDb, ConnectionTable
 __all__ = ["ProcessLink"]
 
 CONNECTION_TYPES = {'local': Connection}
@@ -53,6 +53,7 @@ class ProcessLink(APIClass):
     t_types = TAG_TYPES
     sub_table_orm = SubscriptionTable
     data_table_orm = DataTable
+    connections_table = ConnectionTable
 
     def __repr__(self) -> str:
         return "<class> ProcessLink"
@@ -184,6 +185,10 @@ class ProcessLink(APIClass):
                                                               tag=tag,
                                                               latest_only=latest_only))
         self.add_query(query)
+        if connection in self._connections:
+            self._connections[connection].update_tags_changed(True)
+
+
   
     def get_tag_updates(self, sub_id: str) -> None:
         """
