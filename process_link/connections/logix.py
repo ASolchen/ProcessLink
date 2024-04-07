@@ -113,13 +113,16 @@ class LogixConnection(Connection):
         with LogixDriver(self.host) as plc:
             while(self.polling):
                 ts = time.time()
-                sub_tags = self.get_sub_tags(self.tag_properties)
-                for tag in sub_tags: #used an address of the tagname if address is None
-                    sub_tags[tag]['address'] = sub_tags[tag].get('address', tag)
+                if self.get_tags_changed():
+                    sub_tags = self.get_sub_tags(self.tag_properties)
+                    for tag in sub_tags: #used an address of the tagname if address is None
+                        sub_tags[tag]['address'] = sub_tags[tag].get('address', tag)
+                    self.sub_tags = sub_tags
+                    self.update_tags_changed(False) # clear the flag
                 updates = {}
-                plc_res = plc.read(*[sub_tags[t].get('address') for t in sub_tags])
+                plc_res = plc.read(*[self.sub_tags[t].get('address') for t in self.sub_tags])
                 if not isinstance(plc_res, list): #result expected to be a list. if single tag, make it a list of one
                     plc_res = [plc_res,]
-                for idx, tag in enumerate(sub_tags):
+                for idx, tag in enumerate(self.sub_tags):
                     self.process_link.store_update(f"[{self._id}]{tag}", plc_res[idx].value, ts)
                 time.sleep(max(0, (ts+self.pollrate)-time.time()))

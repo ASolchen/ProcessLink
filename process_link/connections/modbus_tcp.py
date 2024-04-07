@@ -134,11 +134,16 @@ class ModbusTCPConnection(Connection):
         # }
 
     def read_tags(self):
+        if self.get_tags_changed():
+            self.optimize_poll_groups()
         updates = self.read_coils() + \
             self.read_discretes() + \
             self.read_holding_regs() + \
             self.read_input_regs()
         return updates
+    
+    def optimize_poll_groups(self):
+        pass #TODO
     
     def read_coils(self):
         updates = []
