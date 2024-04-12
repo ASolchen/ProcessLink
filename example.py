@@ -2,7 +2,6 @@ from process_link import ProcessLink
 import time
 
 
-
 if __name__ == "__main__":
     link = ProcessLink()
     link.new_connection({"id": f"HousePLC",
@@ -20,7 +19,7 @@ if __name__ == "__main__":
     link.new_connection({"id": f"MB_Test",
                                 "connection_type": "modbusTCP",
                                 "description": "House PLC",
-                                "host": '192.168.30.169',
+                                "host": '127.0.0.1',
                                 "pollrate": 0.2,
                                 "station_id": 1
                                 })
@@ -28,13 +27,14 @@ if __name__ == "__main__":
     link.new_tag({"id":"Crap",
                   "tag_type": "modbusTCP",
                   "connection_id":"MB_Test",
-                  "func": 1,
+                  "func": 4,
                   "bit": 0,
+                  "datatype": "INT",
                   "address": "1"})
     
     link.subscribe("Display01", "[HousePLC]TankLevel", latest_only=False)
-    link.subscribe("Display01", "[Random]Crap", latest_only=False)
-    #link.subscribe("Display01", "[MB_Test]Crap", latest_only=False)
+    #link.subscribe("Display01", "[Random]Crap", latest_only=False)
+    link.subscribe("Display01", "[MB_Test]Crap", latest_only=False)
     for x in range(10):
         print(link.get_tag_updates("Display01"))
         time.sleep(0.5)

@@ -132,10 +132,10 @@ class ProcessLink(APIClass):
             for connection_id in sub_conx:
                 if not connection_id in self._connections:
                     params = Connection.get_def_from_db(self, connection_id)
-                    if params:
+                    try:
                         self._connections[connection_id] = self.c_types[params['connection_type']](self, params)
-                    else:
-                        UnknownConnectionError(connection_id)
+                    except TypeError:
+                        raise UnknownConnectionError(f'Error creating connection. No definition for connection: "{connection_id}"')
             #clean up old tags
             #check for stale connections, close down and delete if not needed
 

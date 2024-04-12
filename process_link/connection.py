@@ -102,6 +102,7 @@ class Connection(APIClass):
                                'datatype', 'value']
         self.polling = True
         self.poll_thread = threading.Thread(target=self.poll, daemon=True)
+        self.sub_tags = []
         self.update_tags_changed(True)
         self.poll_thread.start()
 
@@ -137,7 +138,6 @@ class Connection(APIClass):
                     cols=self.tag_properties)
                 if tag_res:
                     sub_tags[tag].update(tag_res[0])
-
         return sub_tags
 
     def update_tags_changed(self, state):

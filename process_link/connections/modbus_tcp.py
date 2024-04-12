@@ -1,6 +1,6 @@
 import time, struct
 from pymodbus.client import ModbusTcpClient
-from ..subscription import SubscriptionDb
+from ..subscription import SubscriptionDb, SubscriptionTable
 from ..tag import Tag
 from ..connection import Connection
 from ..api import PropertyError
@@ -10,6 +10,13 @@ class FuncTable(): #from mb function read codes, used in tag db
     DISCRETES = 2
     HOLDING_REGS = 3
     STAT_REGS = 4
+
+
+class PollGroup():
+    def __init__(self, addr, len) -> None:
+        self.addr = addr
+        self.len = len
+        self.data = b''
 
 
 class ModbusTag(Tag):
@@ -106,10 +113,17 @@ class ModbusTCPConnection(Connection):
         self._auto_connect = params.get('auto_connect') or False
         self._port = params.get('port') or 502
         self._host = params.get('host') or '127.0.0.1'
-        self._host = params.get('station_id') or '1'
+        self._station_id = int(params.get('station_id',1))
+        self.poll_groups = {
+            0: [], #coils
+            1: [], #discrete inputs
+            3: [], #holding regs
+            4: [], #input regs
+        }
+        self.mb_client = None
 
     def poll(self, *args):
-        with ModbusTcpClient(self.host) as plc:
+        with ModbusTcpClient(self._host) as self.mb_client:
             while(self.polling):
                 ts = time.time()
                 updates = self.read_tags()
@@ -136,14 +150,18 @@ class ModbusTCPConnection(Connection):
     def read_tags(self):
         if self.get_tags_changed():
             self.optimize_poll_groups()
-        updates = self.read_coils() + \
-            self.read_discretes() + \
-            self.read_holding_regs() + \
-            self.read_input_regs()
-        return updates
+        self.read_coils() 
+        self.read_discretes()
+        self.read_holding_regs()
+        self.read_input_regs()
     
     def optimize_poll_groups(self):
-        pass #TODO
+        self.poll_groups = {
+            0: [], #coils
+            1: [], #discrete inputs
+            3: [PollGroup(0,10)], #holding regs
+            4: [], #input regs
+        }
     
     def read_coils(self):
         updates = []
@@ -157,3 +175,28 @@ class ModbusTCPConnection(Connection):
         #   .filter(TagParamsModbus.func == 1)\
         #   .all(), cols=[self.return_tag_parameters()])
         return updates
+    
+    def read_discretes(self):
+        updates = []
+        return updates
+    
+    def read_holding_regs(self):
+        updates = []
+        return updates
+    
+    def read_input_regs(self):
+        for idx, pollgroup in enumerate(self.poll_groups[3]):
+            mb_read = self.mb_client.read_holding_registers(pollgroup.addr , pollgroup.len, self._station_id)
+            try:
+                data = struct.pack(self.data_types["UINT"].str_format * len(mb_read.registers), *mb_read.registers)
+                self.update_tags(data)
+            except AttributeError:
+                print(mb_read)
+            # res = self.process_link.add_query(lambda session: \
+            #     session.session.query(SubscriptionTable.connection, SubscriptionTable.tag)\
+            #     .join(TagParamsModbus, SubscriptionTable.tag == self.tag_orm.id)\
+            #     .filter(SubscriptionTable.connection == self._id)\
+            #     .filter(TagParamsModbus.func == 1)\
+            #     .all(), cols=[self.return_tag_parameters()])
+
+    
