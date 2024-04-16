@@ -98,7 +98,7 @@ DATA_TYPES = {
     "USINT": USINT,
     "INT": INT,
     "UINT": UINT,
-    "DINT": INT,
+    "DINT": DINT,
     "UDINT": UINT,
     "LINT": LINT,
     "ULINT": ULINT,

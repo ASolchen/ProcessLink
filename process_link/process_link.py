@@ -206,12 +206,11 @@ class ProcessLink(APIClass):
         res = self.add_query(query, cols=['connection', 'tag', 'latest_only', 'last_read'])
         tagrows = [(f"[{tag['connection']}]{tag['tag']}", tag['latest_only'], tag['last_read']) for tag in res]
         updates = {}
-        print(len(tagrows))
+        #print(len(tagrows))
         for tagrow in tagrows:
             tag, latest_only, last_read = tagrow
             if latest_only:
                 query =lambda session: session.query(DataTable).filter(DataTable.tagname == tag).order_by(desc(DataTable.timestamp)).limit(1).all()
-                res = self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
                 #clean out all but last row (do this in clean up)
                 # if res:
                 #     row = res[0]
@@ -224,14 +223,14 @@ class ProcessLink(APIClass):
                     .filter(DataTable.tagname == tag, DataTable.timestamp > last_read)\
                     .order_by(asc(DataTable.timestamp))\
                     .all()
-                updates[tag]=self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
-                if len(updates[tag]):
-                    tag_only = self.parse_tagname(tag)[1] #tags are stored without [connection] in the sub table
-                    #update last_read for buffered tags on sub
-                    self.add_query(lambda session: session.query(SubscriptionTable)\
-                                   .filter(SubscriptionTable.sub_id == sub_id)\
-                                   .filter(SubscriptionTable.tag == tag_only)\
-                                    .update({"last_read": ts}, synchronize_session=False))
+            updates[tag]=self.add_query(query, cols=['id', 'tagname', 'value', 'timestamp'])
+            if len(updates[tag]):
+                tag_only = self.parse_tagname(tag)[1] #tags are stored without [connection] in the sub table
+                #update last_read for buffered tags on sub
+                self.add_query(lambda session: session.query(SubscriptionTable)\
+                                .filter(SubscriptionTable.sub_id == sub_id)\
+                                .filter(SubscriptionTable.tag == tag_only)\
+                                .update({"last_read": ts}, synchronize_session=False))
         return updates
 
     def store_update(self, tag, value, timestamp=time.time()):
